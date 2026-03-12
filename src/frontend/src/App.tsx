@@ -6,11 +6,11 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
+import { EmotionDetectPage } from "./pages/EmotionDetectPage";
 import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MoodSelectorPage } from "./pages/MoodSelector";
 import { ProfilePage } from "./pages/Profile";
-import { SignupPage } from "./pages/SignupPage";
 import { SongPickerPage } from "./pages/SongPicker";
 import { SongSearchPage } from "./pages/SongSearchPage";
 import { VibeFeedPage } from "./pages/VibeFeed";
@@ -27,6 +27,11 @@ const rootRoute = createRootRoute({
 const landingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
+  component: LoginPage,
+});
+const landingOldRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/landing",
   component: LandingPage,
 });
 const loginRoute = createRoute({
@@ -37,7 +42,7 @@ const loginRoute = createRoute({
 const signupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/signup",
-  component: SignupPage,
+  component: LoginPage,
 });
 const moodRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -64,9 +69,15 @@ const searchRoute = createRoute({
   path: "/search",
   component: SongSearchPage,
 });
+const detectMoodRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/detect-mood",
+  component: EmotionDetectPage,
+});
 
 const routeTree = rootRoute.addChildren([
   landingRoute,
+  landingOldRoute,
   loginRoute,
   signupRoute,
   moodRoute,
@@ -74,6 +85,7 @@ const routeTree = rootRoute.addChildren([
   feedRoute,
   profileRoute,
   searchRoute,
+  detectMoodRoute,
 ]);
 
 const router = createRouter({ routeTree });

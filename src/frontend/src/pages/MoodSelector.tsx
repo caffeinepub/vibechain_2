@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
+import { Camera, Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -41,7 +41,55 @@ export function MoodSelectorPage() {
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-6">
+      <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+        {/* Detect My Vibe button */}
+        <motion.button
+          data-ocid="mood.detect_button"
+          onClick={() => navigate({ to: "/detect-mood" })}
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
+          className="w-full glass-card rounded-2xl px-5 py-4 flex items-center gap-4 border border-violet-500/30 hover:border-violet-500/60 transition-all relative overflow-hidden group"
+          style={{
+            boxShadow: "0 0 20px oklch(0.65 0.25 290 / 0.2)",
+          }}
+        >
+          {/* Pulsing glow background */}
+          <motion.div
+            className="absolute inset-0 rounded-2xl"
+            style={{
+              background:
+                "radial-gradient(ellipse at 30% 50%, oklch(0.65 0.25 290 / 0.15) 0%, transparent 70%)",
+            }}
+            animate={{ opacity: [0.6, 1, 0.6] }}
+            transition={{
+              duration: 2.5,
+              repeat: Number.POSITIVE_INFINITY,
+              ease: "easeInOut",
+            }}
+          />
+          <div className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-violet-500/20 border border-violet-500/30 shrink-0">
+            <Camera className="w-5 h-5 text-violet-300" />
+          </div>
+          <div className="relative text-left">
+            <p className="font-semibold text-foreground">
+              Detect My Vibe with Camera
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Let AI read your facial expression
+            </p>
+          </div>
+          <motion.div
+            className="relative ml-auto text-violet-400"
+            animate={{ x: [0, 4, 0] }}
+            transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY }}
+          >
+            →
+          </motion.div>
+        </motion.button>
+
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           {MOOD_CONFIGS.map((config, i) => {
             const isLoading = isPending && activeMood === config.mood;
@@ -62,7 +110,7 @@ export function MoodSelectorPage() {
                 }}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.06, duration: 0.4 }}
+                transition={{ delay: i * 0.06 + 0.1, duration: 0.4 }}
                 whileHover={{ scale: isPending ? 1 : 1.03 }}
                 whileTap={{ scale: isPending ? 1 : 0.97 }}
               >

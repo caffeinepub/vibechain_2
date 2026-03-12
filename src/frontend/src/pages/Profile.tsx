@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "@tanstack/react-router";
-import { Clock, Music2, Waves } from "lucide-react";
+import { Clock, Music2, Shield, Waves } from "lucide-react";
 import { motion } from "motion/react";
 import { BottomNav } from "../components/BottomNav";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
@@ -11,7 +11,7 @@ import { formatTimestamp, getMoodConfig } from "../utils/moodUtils";
 export function ProfilePage() {
   const navigate = useNavigate();
   const { data: profile, isLoading } = useCallerProfile();
-  const { identity, clear } = useInternetIdentity();
+  const { identity, clear, login, isLoggingIn } = useInternetIdentity();
   const principal = identity?.getPrincipal().toString();
 
   const currentMoodConfig = profile ? getMoodConfig(profile.currentMood) : null;
@@ -21,35 +21,85 @@ export function ProfilePage() {
       <header className="sticky top-0 z-40 glass border-b border-border/30 px-4 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <h1 className="font-display text-xl font-bold">My Profile</h1>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              clear();
-              navigate({ to: "/" });
-            }}
-            className="text-muted-foreground hover:text-destructive text-xs"
-          >
-            Sign Out
-          </Button>
+          {identity && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                clear();
+                navigate({ to: "/" });
+              }}
+              className="text-muted-foreground hover:text-destructive text-xs"
+            >
+              Sign Out
+            </Button>
+          )}
         </div>
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+        {/* Unauthenticated state */}
+        {!identity && !isLoading && (
+          <motion.div
+            className="flex flex-col items-center justify-center py-24 gap-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div
+              className="w-20 h-20 rounded-full flex items-center justify-center mb-2"
+              style={{
+                background:
+                  "radial-gradient(circle at 30% 30%, oklch(0.55 0.26 295 / 0.4), oklch(0.15 0.05 285))",
+                boxShadow: "0 0 40px oklch(0.55 0.26 295 / 0.25)",
+              }}
+            >
+              <Waves size={32} className="text-primary" />
+            </div>
+
+            <div className="text-center">
+              <h2 className="font-display text-2xl font-bold mb-1">
+                Your Vibe, Your Story
+              </h2>
+              <p className="text-muted-foreground text-sm max-w-xs">
+                Sign in to see your profile, mood history, and current vibes.
+              </p>
+            </div>
+
+            <div className="flex flex-col items-center gap-2">
+              <button
+                type="button"
+                data-ocid="profile.login_button"
+                onClick={() => login()}
+                disabled={isLoggingIn}
+                className="flex items-center gap-3 px-6 py-3 rounded-full bg-white text-gray-900 font-semibold text-sm shadow-md hover:shadow-lg hover:bg-gray-50 active:scale-95 transition-all duration-150 border border-gray-200 disabled:opacity-60 disabled:cursor-not-allowed min-w-[240px] justify-center"
+              >
+                <Shield size={18} className="text-gray-600 flex-shrink-0" />
+                <span>
+                  {isLoggingIn ? "Connecting…" : "Continue with VIBECHAIN"}
+                </span>
+              </button>
+              <p className="text-muted-foreground text-xs flex items-center gap-1">
+                <span>🔒</span>
+                Secure &amp; private — no password needed
+              </p>
+            </div>
+          </motion.div>
+        )}
+
         {isLoading ? (
           <div className="space-y-4">
             <Skeleton className="h-32 w-full rounded-2xl shimmer" />
             <Skeleton className="h-24 w-full rounded-2xl shimmer" />
             <Skeleton className="h-64 w-full rounded-2xl shimmer" />
           </div>
-        ) : !profile ? (
+        ) : !profile && identity ? (
           <div className="text-center py-20">
             <p className="text-muted-foreground mb-4">No profile found</p>
             <Button onClick={() => navigate({ to: "/signup" })}>
               Create Profile
             </Button>
           </div>
-        ) : (
+        ) : profile ? (
           <>
             {/* Profile Card */}
             <motion.div
@@ -206,7 +256,7 @@ export function ProfilePage() {
               )}
             </motion.div>
           </>
-        )}
+        ) : null}
       </main>
 
       <BottomNav />

@@ -21,7 +21,34 @@ export function LoginPage() {
   const { actor, isFetching } = useActor();
   const [checking, setChecking] = useState(false);
   const [pendingLogin, setPendingLogin] = useState(false);
+  const [autoChecked, setAutoChecked] = useState(false);
 
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    if (isInitializing || isFetching || autoChecked) return;
+    if (!identity || !actor) {
+      if (!isInitializing && !isFetching) setAutoChecked(true);
+      return;
+    }
+
+    setChecking(true);
+    setAutoChecked(true);
+
+    actor
+      .getCallerUserProfile()
+      .then((profile) => {
+        if (profile) {
+          navigate({ to: "/feed" });
+        }
+        // else stay on login page for new users
+      })
+      .catch(() => {
+        // ignore errors on auto-check
+      })
+      .finally(() => setChecking(false));
+  }, [isInitializing, isFetching, identity, actor, autoChecked, navigate]);
+
+  // After manual login, check profile and redirect
   useEffect(() => {
     if (!pendingLogin) return;
     if (!identity || isFetching || !actor) return;

@@ -1,11 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "@tanstack/react-router";
-import { Check, Loader2, Music2, Pause, Play } from "lucide-react";
+import { Check, Loader2, Music2, Pause, Play, Sparkles } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Song } from "../backend";
 import { BottomNav } from "../components/BottomNav";
+import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useSetMood } from "../hooks/useQueries";
 import { useVibeStore } from "../store/vibeStore";
 import { getMoodConfig } from "../utils/moodUtils";
@@ -14,6 +15,7 @@ export function SongPickerPage() {
   const navigate = useNavigate();
   const { selectedMood, suggestedSongs } = useVibeStore();
   const { mutateAsync: setMood, isPending } = useSetMood();
+  const { identity, login, isLoggingIn } = useInternetIdentity();
   const [playingId, setPlayingId] = useState<bigint | null>(null);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -86,6 +88,31 @@ export function SongPickerPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6">
+        {/* Sign-in nudge banner for guests */}
+        {!identity && (
+          <motion.div
+            className="mb-5 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-primary/20 bg-primary/5"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Sparkles size={15} className="text-primary flex-shrink-0" />
+              <p className="text-sm text-muted-foreground truncate">
+                Save your vibe and connect with others
+              </p>
+            </div>
+            <button
+              type="button"
+              data-ocid="songpicker.login_button"
+              onClick={() => login()}
+              disabled={isLoggingIn}
+              className="flex-shrink-0 px-4 py-1.5 rounded-full bg-white text-gray-900 text-xs font-semibold border border-gray-200 shadow-sm hover:bg-gray-50 active:scale-95 transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              {isLoggingIn ? "Connecting…" : "Sign in free"}
+            </button>
+          </motion.div>
+        )}
+
         {suggestedSongs.length === 0 ? (
           <div className="text-center py-20 text-muted-foreground">
             <Music2 className="w-16 h-16 mx-auto mb-4 opacity-30" />
