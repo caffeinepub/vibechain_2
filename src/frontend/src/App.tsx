@@ -1,0 +1,89 @@
+import { Toaster } from "@/components/ui/sonner";
+import {
+  Outlet,
+  RouterProvider,
+  createRootRoute,
+  createRoute,
+  createRouter,
+} from "@tanstack/react-router";
+import { LandingPage } from "./pages/LandingPage";
+import { LoginPage } from "./pages/LoginPage";
+import { MoodSelectorPage } from "./pages/MoodSelector";
+import { ProfilePage } from "./pages/Profile";
+import { SignupPage } from "./pages/SignupPage";
+import { SongPickerPage } from "./pages/SongPicker";
+import { SongSearchPage } from "./pages/SongSearchPage";
+import { VibeFeedPage } from "./pages/VibeFeed";
+
+const rootRoute = createRootRoute({
+  component: () => (
+    <>
+      <Outlet />
+      <Toaster position="top-center" theme="dark" richColors />
+    </>
+  ),
+});
+
+const landingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/",
+  component: LandingPage,
+});
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/login",
+  component: LoginPage,
+});
+const signupRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/signup",
+  component: SignupPage,
+});
+const moodRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/mood",
+  component: MoodSelectorPage,
+});
+const songPickerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pick-song",
+  component: SongPickerPage,
+});
+const feedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/feed",
+  component: VibeFeedPage,
+});
+const profileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/profile",
+  component: ProfilePage,
+});
+const searchRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/search",
+  component: SongSearchPage,
+});
+
+const routeTree = rootRoute.addChildren([
+  landingRoute,
+  loginRoute,
+  signupRoute,
+  moodRoute,
+  songPickerRoute,
+  feedRoute,
+  profileRoute,
+  searchRoute,
+]);
+
+const router = createRouter({ routeTree });
+
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: typeof router;
+  }
+}
+
+export default function App() {
+  return <RouterProvider router={router} />;
+}
