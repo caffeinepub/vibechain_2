@@ -58,15 +58,11 @@ export function LoginPage() {
 
     actor
       .getCallerUserProfile()
-      .then((profile) => {
-        if (profile) {
-          navigate({ to: "/feed" });
-        } else {
-          navigate({ to: "/signup" });
-        }
+      .then(() => {
+        navigate({ to: "/feed" });
       })
       .catch(() => {
-        toast.error("Failed to load profile. Please try again.");
+        navigate({ to: "/feed" });
       })
       .finally(() => setChecking(false));
   }, [pendingLogin, identity, isFetching, actor, navigate]);
