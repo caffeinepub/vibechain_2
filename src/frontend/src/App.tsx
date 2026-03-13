@@ -6,6 +6,7 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
+import { MiniPlayer } from "./components/MiniPlayer";
 import { EmotionDetectPage } from "./pages/EmotionDetectPage";
 import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -20,6 +21,7 @@ const rootRoute = createRootRoute({
   component: () => (
     <>
       <Outlet />
+      <MiniPlayer />
       <Toaster position="top-center" theme="dark" richColors />
     </>
   ),

@@ -10,11 +10,12 @@ import {
   Sparkles,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Song } from "../backend";
 import { BottomNav } from "../components/BottomNav";
 import { useSetMood } from "../hooks/useQueries";
+import { usePlayerStore } from "../store/playerStore";
 import { useVibeStore } from "../store/vibeStore";
 
 interface ItunesResult {
@@ -39,24 +40,18 @@ export function SongSearchPage() {
   const navigate = useNavigate();
   const { selectedMood } = useVibeStore();
   const { mutateAsync: setMood, isPending: isSettingMood } = useSetMood();
+  const { setQueue, isPlaying, queue, currentIndex } = usePlayerStore();
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Song[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
-  const [playingId, setPlayingId] = useState<bigint | null>(null);
   const [settingVibeId, setSettingVibeId] = useState<bigint | null>(null);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    return () => {
-      audioRef.current?.pause();
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
+  const currentSong = queue[currentIndex];
 
   const searchItunes = async (term: string) => {
     if (!term.trim()) {
@@ -89,19 +84,16 @@ export function SongSearchPage() {
     debounceRef.current = setTimeout(() => searchItunes(val), 400);
   };
 
-  const togglePlay = (song: Song) => {
+  const togglePlay = (song: Song, index: number) => {
     if (!song.previewUrl) return;
-    if (playingId === song.trackId) {
-      audioRef.current?.pause();
-      setPlayingId(null);
-      return;
+    const isCurrent = currentSong?.trackId === song.trackId;
+    if (isCurrent && isPlaying) {
+      usePlayerStore.getState().pause();
+    } else if (isCurrent && !isPlaying) {
+      usePlayerStore.getState().play();
+    } else {
+      setQueue(results, index);
     }
-    audioRef.current?.pause();
-    const audio = new Audio(song.previewUrl);
-    audioRef.current = audio;
-    audio.play().catch(() => toast.error("Preview not available"));
-    audio.onended = () => setPlayingId(null);
-    setPlayingId(song.trackId);
   };
 
   const handleSetVibe = async (song: Song) => {
@@ -111,8 +103,7 @@ export function SongSearchPage() {
       return;
     }
     setSettingVibeId(song.trackId);
-    audioRef.current?.pause();
-    setPlayingId(null);
+    usePlayerStore.getState().pause();
     try {
       await setMood({ mood: selectedMood, song });
       toast.success("Vibe set! Your soul speaks. 🎵");
@@ -261,7 +252,8 @@ export function SongSearchPage() {
           <div className="grid grid-cols-1 gap-3">
             <AnimatePresence>
               {results.map((song, i) => {
-                const isPlaying = playingId === song.trackId;
+                const isCurrent = currentSong?.trackId === song.trackId;
+                const isThisPlaying = isCurrent && isPlaying;
                 const isSetting =
                   isSettingMood && settingVibeId === song.trackId;
                 return (
@@ -305,24 +297,28 @@ export function SongSearchPage() {
                       {song.previewUrl && (
                         <button
                           type="button"
-                          onClick={() => togglePlay(song)}
-                          data-ocid={`search.play_button.${i + 1}`}
+                          onClick={() => togglePlay(song, i)}
+                          data-ocid={`search.toggle.${i + 1}`}
                           className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                            isPlaying
+                            isThisPlaying
                               ? "bg-primary text-primary-foreground shadow-[0_0_12px_oklch(0.62_0.26_295/0.5)]"
                               : "bg-muted/50 text-foreground hover:bg-muted"
                           }`}
                           aria-label={
-                            isPlaying ? "Pause preview" : "Play preview"
+                            isThisPlaying ? "Pause preview" : "Play preview"
                           }
                         >
-                          {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+                          {isThisPlaying ? (
+                            <Pause size={14} />
+                          ) : (
+                            <Play size={14} />
+                          )}
                         </button>
                       )}
                       <button
                         type="button"
                         onClick={() => handleSetVibe(song)}
-                        data-ocid={`search.select_button.${i + 1}`}
+                        data-ocid={`search.secondary_button.${i + 1}`}
                         disabled={isSettingMood}
                         className="px-3 h-9 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all bg-primary/15 text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-50 border border-primary/20 hover:border-transparent"
                         aria-label="Set as vibe"

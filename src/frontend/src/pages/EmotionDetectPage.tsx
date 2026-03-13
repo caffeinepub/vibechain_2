@@ -205,10 +205,10 @@ export function EmotionDetectPage() {
     }
   };
 
+  // Only cleanup on unmount — do NOT auto-call loadModels here
   useEffect(() => {
-    loadModels();
     return () => stopCamera();
-  }, [loadModels, stopCamera]);
+  }, [stopCamera]);
 
   const detectedConfig = detected
     ? MOOD_CONFIGS.find((c) => c.mood === detected.mood)
@@ -240,6 +240,67 @@ export function EmotionDetectPage() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 space-y-6">
+        {/* Idle — prompt user to allow camera (must be triggered by user gesture) */}
+        <AnimatePresence>
+          {state === "idle" && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="glass-card rounded-3xl p-10 text-center space-y-6"
+            >
+              <motion.div
+                animate={{ scale: [1, 1.08, 1] }}
+                transition={{
+                  duration: 2.5,
+                  repeat: Number.POSITIVE_INFINITY,
+                  ease: "easeInOut",
+                }}
+                className="w-20 h-20 mx-auto rounded-full flex items-center justify-center"
+                style={{
+                  background: "oklch(0.35 0.15 290 / 0.4)",
+                  boxShadow: "0 0 40px oklch(0.65 0.25 290 / 0.4)",
+                  border: "2px solid oklch(0.65 0.25 290 / 0.5)",
+                }}
+              >
+                <Camera className="w-9 h-9 text-violet-300" />
+              </motion.div>
+
+              <div className="space-y-2">
+                <h2 className="font-display text-2xl font-bold text-foreground">
+                  Read Your Vibe
+                </h2>
+                <p className="text-muted-foreground text-sm leading-relaxed max-w-xs mx-auto">
+                  Point your camera at your face — VIBECHAIN will detect your
+                  mood automatically and suggest matching music.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <motion.button
+                  data-ocid="detect.start_button"
+                  type="button"
+                  onClick={loadModels}
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="w-full py-4 rounded-2xl font-semibold text-white flex items-center justify-center gap-2.5 transition-all"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, oklch(0.55 0.25 290), oklch(0.5 0.22 310))",
+                    boxShadow: "0 4px 24px oklch(0.55 0.25 290 / 0.4)",
+                  }}
+                >
+                  <Camera className="w-5 h-5" />
+                  Allow Camera &amp; Detect Vibe
+                </motion.button>
+                <p className="text-xs text-muted-foreground">
+                  Your camera feed stays on-device. Nothing is uploaded.
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Loading state */}
         <AnimatePresence>
           {state === "loading" && (
@@ -305,7 +366,7 @@ export function EmotionDetectPage() {
             >
               {/* Camera preview */}
               <div
-                data-ocid="detect.camera_preview"
+                data-ocid="detect.canvas_target"
                 className="relative rounded-3xl overflow-hidden aspect-[4/3]"
                 style={{
                   boxShadow: detectedConfig
@@ -464,13 +525,6 @@ export function EmotionDetectPage() {
             </motion.div>
           )}
         </AnimatePresence>
-
-        {state === "idle" && (
-          <div className="text-center py-12 text-muted-foreground">
-            <Camera className="w-12 h-12 mx-auto mb-3 opacity-40" />
-            <p>Initializing...</p>
-          </div>
-        )}
       </main>
 
       <BottomNav />

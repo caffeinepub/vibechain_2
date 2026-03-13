@@ -2,12 +2,13 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "@tanstack/react-router";
 import { Check, Loader2, Music2, Pause, Play, Sparkles } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Song } from "../backend";
 import { BottomNav } from "../components/BottomNav";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useSetMood } from "../hooks/useQueries";
+import { usePlayerStore } from "../store/playerStore";
 import { useVibeStore } from "../store/vibeStore";
 import { getMoodConfig } from "../utils/moodUtils";
 
@@ -16,16 +17,10 @@ export function SongPickerPage() {
   const { selectedMood, suggestedSongs } = useVibeStore();
   const { mutateAsync: setMood, isPending } = useSetMood();
   const { identity, login, isLoggingIn } = useInternetIdentity();
-  const [playingId, setPlayingId] = useState<bigint | null>(null);
+  const { setQueue, isPlaying, queue, currentIndex } = usePlayerStore();
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  useEffect(() => {
-    return () => {
-      audioRef.current?.pause();
-      audioRef.current = null;
-    };
-  }, []);
+  const currentSong = queue[currentIndex];
 
   useEffect(() => {
     if (!selectedMood) {
@@ -33,28 +28,22 @@ export function SongPickerPage() {
     }
   }, [selectedMood, navigate]);
 
-  const togglePlay = (song: Song) => {
+  const togglePlay = (song: Song, index: number) => {
     if (!song.previewUrl) return;
-
-    if (playingId === song.trackId) {
-      audioRef.current?.pause();
-      setPlayingId(null);
-      return;
+    const isCurrent = currentSong?.trackId === song.trackId;
+    if (isCurrent && isPlaying) {
+      usePlayerStore.getState().pause();
+    } else if (isCurrent && !isPlaying) {
+      usePlayerStore.getState().play();
+    } else {
+      setQueue(suggestedSongs, index);
     }
-
-    audioRef.current?.pause();
-    const audio = new Audio(song.previewUrl);
-    audioRef.current = audio;
-    audio.play().catch(() => toast.error("Preview not available"));
-    audio.onended = () => setPlayingId(null);
-    setPlayingId(song.trackId);
   };
 
   const handleChoose = async (song: Song) => {
     if (!selectedMood) return;
     setSelectedSong(song);
-    audioRef.current?.pause();
-    setPlayingId(null);
+    usePlayerStore.getState().pause();
     try {
       await setMood({ mood: selectedMood, song });
       toast.success("Vibe set! Your soul speaks. 🎵");
@@ -129,7 +118,8 @@ export function SongPickerPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <AnimatePresence>
               {suggestedSongs.map((song, i) => {
-                const isPlaying = playingId === song.trackId;
+                const isCurrent = currentSong?.trackId === song.trackId;
+                const isThisPlaying = isCurrent && isPlaying;
                 const isChoosing =
                   isPending && selectedSong?.trackId === song.trackId;
                 return (
@@ -169,24 +159,28 @@ export function SongPickerPage() {
                       {song.previewUrl && (
                         <button
                           type="button"
-                          onClick={() => togglePlay(song)}
-                          data-ocid={`song.play_button.${i + 1}`}
+                          onClick={() => togglePlay(song, i)}
+                          data-ocid={`song.toggle.${i + 1}`}
                           className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                            isPlaying
+                            isThisPlaying
                               ? "bg-primary text-primary-foreground"
                               : "bg-muted/50 text-foreground hover:bg-muted"
                           }`}
                           aria-label={
-                            isPlaying ? "Pause preview" : "Play preview"
+                            isThisPlaying ? "Pause preview" : "Play preview"
                           }
                         >
-                          {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+                          {isThisPlaying ? (
+                            <Pause size={14} />
+                          ) : (
+                            <Play size={14} />
+                          )}
                         </button>
                       )}
                       <button
                         type="button"
                         onClick={() => handleChoose(song)}
-                        data-ocid={`song.select_button.${i + 1}`}
+                        data-ocid={`song.secondary_button.${i + 1}`}
                         disabled={isPending}
                         className="w-9 h-9 rounded-full flex items-center justify-center transition-all bg-accent/20 text-accent hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
                         aria-label="Choose this vibe"
