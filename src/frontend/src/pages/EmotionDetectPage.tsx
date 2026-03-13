@@ -1,6 +1,6 @@
 import { Progress } from "@/components/ui/progress";
 import { useNavigate } from "@tanstack/react-router";
-import Human from "@vladmandic/human";
+import * as faceapi from "@vladmandic/face-api";
 import { Camera, RefreshCw, Sparkles, Zap } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,14 +11,7 @@ import { useGetMusicSuggestions } from "../hooks/useQueries";
 import { useVibeStore } from "../store/vibeStore";
 import { MOOD_CONFIGS } from "../utils/moodUtils";
 
-const human = new Human({
-  modelBasePath: "https://vladmandic.github.io/human/models",
-  face: { enabled: true, emotion: { enabled: true } },
-  body: { enabled: false },
-  hand: { enabled: false },
-  gesture: { enabled: false },
-  object: { enabled: false },
-});
+const MODEL_URL = "https://vladmandic.github.io/face-api/model/";
 
 type DetectionState = "idle" | "loading" | "scanning" | "result" | "error";
 
@@ -28,13 +21,13 @@ interface DetectedEmotion {
   rawExpression: string;
 }
 
-function mapEmotionToMood(
-  emotions: { emotion: string; score: number }[],
+function mapExpressionToMood(
+  expressions: faceapi.FaceExpressions,
 ): DetectedEmotion {
-  if (!emotions || emotions.length === 0) {
-    return { mood: Mood.calm, confidence: 0, rawExpression: "neutral" };
-  }
-  const top = emotions[0];
+  const entries = Object.entries(expressions) as [string, number][];
+  entries.sort((a, b) => b[1] - a[1]);
+  const [topExpr, topScore] = entries[0];
+
   const mapping: Record<string, Mood> = {
     happy: Mood.happy,
     sad: Mood.sad,
@@ -44,8 +37,9 @@ function mapEmotionToMood(
     disgusted: Mood.angry,
     neutral: Mood.calm,
   };
-  const mood = mapping[top.emotion] ?? Mood.calm;
-  return { mood, confidence: top.score, rawExpression: top.emotion };
+
+  const mood = mapping[topExpr] ?? Mood.calm;
+  return { mood, confidence: topScore, rawExpression: topExpr };
 }
 
 export function EmotionDetectPage() {
@@ -86,10 +80,14 @@ export function EmotionDetectPage() {
       idx++;
       if (!videoRef.current || !modelsReadyRef.current) return;
       try {
-        const result = await human.detect(videoRef.current);
-        const emotions = result.face?.[0]?.emotion;
-        if (emotions && emotions.length > 0) {
-          const emotion = mapEmotionToMood(emotions);
+        const detections = await faceapi
+          .detectAllFaces(
+            videoRef.current,
+            new faceapi.TinyFaceDetectorOptions(),
+          )
+          .withFaceExpressions();
+        if (detections && detections.length > 0) {
+          const emotion = mapExpressionToMood(detections[0].expressions);
           const stab = stabilityRef.current;
           if (stab.mood === emotion.mood) {
             stab.count++;
@@ -130,9 +128,9 @@ export function EmotionDetectPage() {
     setState("loading");
     setLoadProgress(10);
     try {
-      await human.load();
-      setLoadProgress(50);
-      await human.warmup();
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      setLoadProgress(60);
+      await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
       setLoadProgress(100);
       modelsReadyRef.current = true;
       await startCamera();
@@ -146,10 +144,11 @@ export function EmotionDetectPage() {
     if (!videoRef.current || !modelsReadyRef.current) return;
     if (intervalRef.current) clearInterval(intervalRef.current);
     try {
-      const result = await human.detect(videoRef.current);
-      const emotions = result.face?.[0]?.emotion;
-      if (emotions && emotions.length > 0) {
-        const emotion = mapEmotionToMood(emotions);
+      const detections = await faceapi
+        .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+        .withFaceExpressions();
+      if (detections && detections.length > 0) {
+        const emotion = mapExpressionToMood(detections[0].expressions);
         setDetected(emotion);
         setState("result");
       } else {
@@ -254,7 +253,7 @@ export function EmotionDetectPage() {
 
               <div className="space-y-3">
                 <motion.button
-                  data-ocid="detect.start_button"
+                  data-ocid="detect.primary_button"
                   type="button"
                   onClick={loadModels}
                   whileHover={{ scale: 1.03 }}
@@ -386,7 +385,7 @@ export function EmotionDetectPage() {
               {/* Manual scan button */}
               {state === "scanning" && (
                 <motion.button
-                  data-ocid="detect.scan_button"
+                  data-ocid="detect.secondary_button"
                   onClick={handleScanNow}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.97 }}
@@ -401,7 +400,7 @@ export function EmotionDetectPage() {
               <AnimatePresence>
                 {state === "result" && detected && detectedConfig && (
                   <motion.div
-                    data-ocid="detect.result_card"
+                    data-ocid="detect.card"
                     initial={{ opacity: 0, scale: 0.9, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9 }}
@@ -465,7 +464,7 @@ export function EmotionDetectPage() {
                     <div className="grid grid-cols-2 gap-3 pt-2">
                       <button
                         type="button"
-                        data-ocid="detect.retry_button"
+                        data-ocid="detect.secondary_button"
                         onClick={handleRetry}
                         className="py-3 rounded-xl bg-white/5 border border-white/10 text-muted-foreground text-sm font-medium flex items-center justify-center gap-2 hover:bg-white/10 transition-all"
                       >
@@ -474,7 +473,7 @@ export function EmotionDetectPage() {
                       </button>
                       <button
                         type="button"
-                        data-ocid="detect.use_vibe_button"
+                        data-ocid="detect.primary_button"
                         onClick={handleUseVibe}
                         disabled={isFetchingMusic}
                         className="py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-60 transition-all"

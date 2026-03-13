@@ -18,24 +18,24 @@
 
 @layer base {
   :root {
-    --background: 0.09 0.025 285;
+    --background: 0.07 0.03 285;
     --foreground: 0.96 0.01 285;
-    --card: 0.12 0.03 285;
+    --card: 0.11 0.035 285;
     --card-foreground: 0.96 0.01 285;
-    --popover: 0.11 0.025 285;
+    --popover: 0.1 0.03 285;
     --popover-foreground: 0.96 0.01 285;
     --primary: 0.62 0.26 295;
     --primary-foreground: 0.98 0.005 285;
-    --secondary: 0.18 0.05 285;
+    --secondary: 0.17 0.055 285;
     --secondary-foreground: 0.85 0.03 285;
-    --muted: 0.2 0.04 285;
-    --muted-foreground: 0.6 0.05 285;
+    --muted: 0.19 0.045 285;
+    --muted-foreground: 0.58 0.055 285;
     --accent: 0.68 0.28 330;
     --accent-foreground: 0.98 0.005 285;
     --destructive: 0.58 0.24 25;
     --destructive-foreground: 0.98 0.005 285;
-    --border: 0.22 0.05 285;
-    --input: 0.18 0.04 285;
+    --border: 0.21 0.055 285;
+    --input: 0.17 0.045 285;
     --ring: 0.62 0.26 295;
     --radius: 0.75rem;
     --chart-1: 0.62 0.26 295;
@@ -43,13 +43,13 @@
     --chart-3: 0.7 0.22 200;
     --chart-4: 0.75 0.2 160;
     --chart-5: 0.65 0.24 60;
-    --sidebar: 0.1 0.03 285;
+    --sidebar: 0.09 0.03 285;
     --sidebar-foreground: 0.96 0.01 285;
     --sidebar-primary: 0.62 0.26 295;
     --sidebar-primary-foreground: 0.98 0.005 285;
-    --sidebar-accent: 0.18 0.05 285;
+    --sidebar-accent: 0.17 0.055 285;
     --sidebar-accent-foreground: 0.85 0.03 285;
-    --sidebar-border: 0.22 0.05 285;
+    --sidebar-border: 0.21 0.055 285;
     --sidebar-ring: 0.62 0.26 295;
 
     /* Vibe-specific glow colors */
@@ -73,17 +73,62 @@
 
   body {
     @apply bg-background text-foreground font-body;
-    background-image: radial-gradient(
-        ellipse 80% 50% at 20% -10%,
-        oklch(0.3 0.15 280 / 0.4) 0%,
-        transparent 60%
-      ),
-      radial-gradient(
-        ellipse 60% 40% at 80% 110%,
-        oklch(0.25 0.12 320 / 0.35) 0%,
-        transparent 60%
-      );
+    position: relative;
     min-height: 100vh;
+    /* Deep cosmic background */
+    background-color: oklch(0.07 0.03 285);
+    /* Soft aurora top-left */
+    background-image: radial-gradient(
+        ellipse 90% 55% at 15% -5%,
+        oklch(0.32 0.18 280 / 0.45) 0%,
+        transparent 60%
+      ), /* Warm rose bottom-right */
+      radial-gradient(
+        ellipse 70% 50% at 90% 105%,
+        oklch(0.28 0.15 330 / 0.4) 0%,
+        transparent 60%
+      ), /* Teal mid-centre */
+      radial-gradient(
+        ellipse 50% 35% at 55% 60%,
+        oklch(0.22 0.1 220 / 0.2) 0%,
+        transparent 55%
+      ), /* Subtle violet top-right */
+      radial-gradient(
+        ellipse 45% 30% at 85% 10%,
+        oklch(0.25 0.12 300 / 0.25) 0%,
+        transparent 55%
+      );
+  }
+
+  /* VIBECHAIN watermark fixed behind all content */
+  body::before {
+    content: "VIBECHAIN";
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-30deg);
+    font-family: "Fraunces", serif;
+    font-size: clamp(4rem, 18vw, 14rem);
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 0;
+    /* Iridescent gradient text */
+    background: linear-gradient(
+      135deg,
+      oklch(0.65 0.28 295 / 0.07) 0%,
+      oklch(0.7 0.3 330 / 0.1) 30%,
+      oklch(0.68 0.24 260 / 0.06) 60%,
+      oklch(0.72 0.28 310 / 0.08) 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    /* Outer glow so it shimmers */
+    filter: drop-shadow(0 0 40px oklch(0.62 0.26 295 / 0.12))
+      drop-shadow(0 0 80px oklch(0.68 0.28 330 / 0.08));
+    animation: watermark-breathe 8s ease-in-out infinite;
   }
 
   h1,
@@ -106,12 +151,12 @@
       oklch(0.68 0.28 330 / 0.2);
   }
   .glass {
-    background: oklch(0.14 0.03 285 / 0.8);
+    background: oklch(0.13 0.035 285 / 0.82);
     backdrop-filter: blur(16px);
     border: 1px solid oklch(0.35 0.08 285 / 0.3);
   }
   .glass-card {
-    background: oklch(0.13 0.035 285 / 0.85);
+    background: oklch(0.12 0.038 285 / 0.88);
     backdrop-filter: blur(20px);
     border: 1px solid oklch(0.32 0.08 285 / 0.4);
   }
@@ -143,6 +188,20 @@
   }
   100% {
     background-position: -200% 0;
+  }
+}
+
+@keyframes watermark-breathe {
+  0%,
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 40px oklch(0.62 0.26 295 / 0.12))
+      drop-shadow(0 0 80px oklch(0.68 0.28 330 / 0.08));
+  }
+  50% {
+    opacity: 0.7;
+    filter: drop-shadow(0 0 60px oklch(0.65 0.28 295 / 0.2))
+      drop-shadow(0 0 120px oklch(0.68 0.28 330 / 0.14));
   }
 }
 

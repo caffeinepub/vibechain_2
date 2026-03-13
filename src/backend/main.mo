@@ -10,10 +10,10 @@ import Time "mo:core/Time";
 import OutCall "http-outcalls/outcall";
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
-import Migration "migration";
+
 
 // Explicit with migration due to persistent anonymizer id
-(with migration = Migration.run)
+
 actor {
   // Custom types
   public type Mood = {
