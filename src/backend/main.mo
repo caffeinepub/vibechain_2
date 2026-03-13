@@ -201,7 +201,7 @@ actor {
       Runtime.trap("Unauthorized: Only users can get music suggestions");
     };
     let keyword = moodToKeyword(mood);
-    let apiKey = "AIzaSyBvsZ3vcj1Dlk4yXwA7f2aPvP1unBPPaC0";
+    let apiKey = "AIzaSyCkFgMR_4K2G5UHVqVPnNcDJLerUnZxE78";
     let url = "https://www.googleapis.com/youtube/v3/search?part=snippet&q=" # keyword # "%20music&type=video&videoCategoryId=10&maxResults=20&key=" # apiKey;
     let response = await OutCall.httpGetRequest(url, [], transform);
     response;

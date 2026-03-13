@@ -2,8 +2,9 @@ import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Loader2, Waves } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Mood } from "../backend";
 import { MoodOrbs } from "../components/MoodOrbs";
 import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
@@ -22,6 +23,14 @@ export function LoginPage() {
   const [checking, setChecking] = useState(false);
   const [pendingLogin, setPendingLogin] = useState(false);
   const [autoChecked, setAutoChecked] = useState(false);
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear any fallback timer on unmount
+  useEffect(() => {
+    return () => {
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    };
+  }, []);
 
   // Auto-redirect if already logged in (returning users only)
   useEffect(() => {
@@ -36,11 +45,8 @@ export function LoginPage() {
 
     actor
       .getCallerUserProfile()
-      .then((profile) => {
-        if (profile) {
-          navigate({ to: "/feed" });
-        }
-        // New users (no profile) stay on login page
+      .then(() => {
+        navigate({ to: "/feed" });
       })
       .catch(() => {
         // ignore errors on auto-check
@@ -48,34 +54,55 @@ export function LoginPage() {
       .finally(() => setChecking(false));
   }, [isInitializing, isFetching, identity, actor, autoChecked, navigate]);
 
-  // After manual login, check profile and redirect accordingly
+  // After manual login, go straight to feed (create profile if needed)
   useEffect(() => {
     if (!pendingLogin) return;
-    if (!identity || isFetching || !actor) return;
+    if (!identity) return;
+
+    // Actor is still loading — start a fallback timer so we never get stuck
+    if (isFetching || !actor) {
+      if (!fallbackTimerRef.current) {
+        fallbackTimerRef.current = setTimeout(() => {
+          fallbackTimerRef.current = null;
+          setPendingLogin(false);
+          setChecking(false);
+          navigate({ to: "/feed" });
+        }, 8000);
+      }
+      return;
+    }
+
+    // Actor is ready — clear any fallback timer
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
+    }
 
     setChecking(true);
     setPendingLogin(false);
 
     actor
       .getCallerUserProfile()
-      .then((profile) => {
-        if (profile) {
-          navigate({ to: "/feed" });
-        } else {
-          // New user — go to username setup
-          navigate({ to: "/setup-username" });
+      .then(async (profile) => {
+        if (!profile) {
+          // Auto-create a profile with a generated username so the user can proceed immediately
+          const defaultName = `vibe_${Date.now().toString(36)}`;
+          try {
+            await actor.createUserProfile(defaultName, Mood.calm, null);
+          } catch {
+            // If creation fails (e.g. already exists), just continue
+          }
         }
+        navigate({ to: "/feed" });
       })
       .catch(() => {
-        // Likely no profile yet
-        navigate({ to: "/setup-username" });
+        navigate({ to: "/feed" });
       })
       .finally(() => setChecking(false));
   }, [pendingLogin, identity, isFetching, actor, navigate]);
 
   useEffect(() => {
     if (isLoginError && loginError) {
-      // Suppress "already authenticated" error — it's handled gracefully
       const msg = loginError.message ?? "";
       if (!msg.toLowerCase().includes("already authenticated")) {
         toast.error(msg || "Login failed");
@@ -85,7 +112,6 @@ export function LoginPage() {
 
   const handleLogin = () => {
     if (identity) {
-      // Already authenticated (actor may still be loading) — wait via pendingLogin effect
       setPendingLogin(true);
     } else {
       setPendingLogin(true);
@@ -144,7 +170,7 @@ export function LoginPage() {
               {isLoggingIn
                 ? "Connecting..."
                 : checking
-                  ? "Checking profile..."
+                  ? "Entering vibe space..."
                   : "Enter the Vibe"}
             </Button>
           </div>

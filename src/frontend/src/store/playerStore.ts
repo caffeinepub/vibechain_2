@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { create } from "zustand";
 import type { Song } from "../backend";
 
@@ -14,6 +15,7 @@ declare global {
 
 interface YTPlayer {
   loadVideoById(videoId: string): void;
+  cueVideoById(videoId: string): void;
   playVideo(): void;
   pauseVideo(): void;
   seekTo(seconds: number, allowSeekAhead: boolean): void;
@@ -68,8 +70,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     });
     const song = songs[startIndex];
     if (song) {
-      audioManager.load(song);
-      set({ isPlaying: true });
+      audioManager.load(song, true);
     }
   },
 
@@ -98,8 +99,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     if (nextIndex >= queue.length) return;
     const song = queue[nextIndex];
     set({ currentIndex: nextIndex, progress: 0, currentTime: 0, duration: 0 });
-    audioManager.load(song);
-    set({ isPlaying: true });
+    audioManager.load(song, true);
   },
 
   prev: () => {
@@ -108,8 +108,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     if (prevIndex < 0) return;
     const song = queue[prevIndex];
     set({ currentIndex: prevIndex, progress: 0, currentTime: 0, duration: 0 });
-    audioManager.load(song);
-    set({ isPlaying: true });
+    audioManager.load(song, true);
   },
 
   seek: (time: number) => {
@@ -140,60 +139,63 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
 type Callback = () => void;
 type TimeCallback = (currentTime: number, duration: number) => void;
 
+// Stable singleton promise so concurrent callers all wait for the same load
+let _ytApiPromise: Promise<void> | null = null;
+
 function loadYouTubeAPI(): Promise<void> {
-  return new Promise((resolve) => {
+  if (_ytApiPromise) return _ytApiPromise;
+  _ytApiPromise = new Promise((resolve) => {
     if (window.YT?.Player) {
       resolve();
       return;
-    }
-    const existing = document.getElementById("yt-iframe-api-script");
-    if (!existing) {
-      const script = document.createElement("script");
-      script.id = "yt-iframe-api-script";
-      script.src = "https://www.youtube.com/iframe_api";
-      document.head.appendChild(script);
     }
     const prev = window.onYouTubeIframeAPIReady;
     window.onYouTubeIframeAPIReady = () => {
       if (prev) prev();
       resolve();
     };
+    if (!document.getElementById("yt-iframe-api-script")) {
+      const script = document.createElement("script");
+      script.id = "yt-iframe-api-script";
+      script.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(script);
+    }
   });
+  return _ytApiPromise;
 }
 
 class YouTubePlayerManager {
   private player: YTPlayer | null = null;
   private _ready = false;
-  private _pendingSong: Song | null = null;
+  private _autoplayOnReady = false;
+  private _pendingVideoId: string | null = null;
   private _pollInterval: ReturnType<typeof setInterval> | null = null;
   private _onTimeUpdateCbs: TimeCallback[] = [];
   private _onEndedCbs: Callback[] = [];
-  private _onDurationChangeCbs: Callback[] = [];
+  private _onErrorCbs: Callback[] = [];
 
-  private ensureContainer() {
-    if (!document.getElementById("yt-player-container")) {
+  private ensureContainer(): string {
+    const id = "yt-player-container";
+    if (!document.getElementById(id)) {
       const div = document.createElement("div");
-      div.id = "yt-player-container";
-      div.style.position = "fixed";
-      div.style.width = "1px";
-      div.style.height = "1px";
-      div.style.opacity = "0";
-      div.style.pointerEvents = "none";
-      div.style.zIndex = "-1";
+      div.id = id;
+      div.style.cssText =
+        "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;z-index:-1;";
       document.body.appendChild(div);
     }
+    return id;
   }
 
   private startPolling() {
     if (this._pollInterval) return;
     this._pollInterval = setInterval(() => {
-      if (!this.player) return;
+      if (!this.player || !this._ready) return;
       try {
         const currentTime = this.player.getCurrentTime();
         const duration = this.player.getDuration();
         for (const cb of this._onTimeUpdateCbs) cb(currentTime, duration || 0);
       } catch {
-        // player not ready
+        // player not ready yet
       }
     }, 500);
   }
@@ -205,47 +207,101 @@ class YouTubePlayerManager {
     }
   }
 
-  private async initPlayer(videoId: string) {
-    this.ensureContainer();
+  private async createPlayer(videoId: string, autoplay: boolean) {
+    const containerId = this.ensureContainer();
     await loadYouTubeAPI();
 
-    if (this.player) {
-      try {
-        this.player.loadVideoById(videoId);
-        this._ready = true;
+    // Re-check: if player was created while we were awaiting, just load the video
+    if (this.player && this._ready) {
+      this.player.loadVideoById(videoId);
+      if (autoplay) {
+        // loadVideoById auto-starts, but call playVideo to be explicit
+        try {
+          this.player.playVideo();
+        } catch {
+          /* ignore */
+        }
         this.startPolling();
-        return;
-      } catch {
-        // fall through to recreate
+        usePlayerStore.setState({ isPlaying: true });
       }
+      return;
     }
 
     this._ready = false;
-    this.player = new window.YT.Player("yt-player-container", {
+    this._autoplayOnReady = autoplay;
+    this._pendingVideoId = null;
+
+    this.player = new window.YT.Player(containerId, {
       videoId,
-      playerVars: { autoplay: 1, controls: 0, playsinline: 1 },
+      playerVars: {
+        autoplay: autoplay ? 1 : 0,
+        controls: 0,
+        playsinline: 1,
+        origin: window.location.origin,
+      },
       events: {
         onReady: () => {
           this._ready = true;
-          if (this._pendingSong) {
-            this.player?.loadVideoById(this._pendingSong.previewUrl);
-            this._pendingSong = null;
+          if (this._pendingVideoId) {
+            this.player?.loadVideoById(this._pendingVideoId);
+            this._pendingVideoId = null;
           }
-          this.startPolling();
+          if (this._autoplayOnReady) {
+            try {
+              this.player?.playVideo();
+            } catch {
+              /* ignore */
+            }
+            this.startPolling();
+            usePlayerStore.setState({ isPlaying: true });
+          }
         },
         onStateChange: (event: { data: number }) => {
-          if (window.YT?.PlayerState?.ENDED === event.data) {
+          const YTState = window.YT?.PlayerState;
+          if (YTState?.ENDED === event.data) {
             this.stopPolling();
             for (const cb of this._onEndedCbs) cb();
+          } else if (YTState?.PLAYING === event.data) {
+            this.startPolling();
+            usePlayerStore.setState({ isPlaying: true });
+          } else if (YTState?.PAUSED === event.data) {
+            this.stopPolling();
+            usePlayerStore.setState({ isPlaying: false });
           }
+        },
+        onError: (_event: { data: number }) => {
+          this.stopPolling();
+          usePlayerStore.setState({ isPlaying: false });
+          for (const cb of this._onErrorCbs) cb();
         },
       },
     });
   }
 
-  load(song: Song) {
+  load(song: Song, autoplay = false) {
     if (!song.previewUrl) return;
-    this.initPlayer(song.previewUrl).catch(() => {});
+    const videoId = song.previewUrl;
+
+    if (this.player && this._ready) {
+      // Player exists and is ready — swap video directly
+      this.player.loadVideoById(videoId);
+      if (autoplay) {
+        try {
+          this.player.playVideo();
+        } catch {
+          /* ignore */
+        }
+        this.startPolling();
+        usePlayerStore.setState({ isPlaying: true });
+      }
+    } else if (this.player && !this._ready) {
+      // Player is initializing — queue the video
+      this._pendingVideoId = videoId;
+      this._autoplayOnReady = autoplay;
+    } else {
+      // No player yet — create one
+      this.createPlayer(videoId, autoplay).catch(() => {});
+    }
   }
 
   play() {
@@ -260,6 +316,7 @@ class YouTubePlayerManager {
   }
 
   pause() {
+    this.stopPolling();
     if (this.player && this._ready) {
       try {
         this.player.pauseVideo();
@@ -267,7 +324,6 @@ class YouTubePlayerManager {
         // ignore
       }
     }
-    this.stopPolling();
   }
 
   seek(time: number) {
@@ -288,8 +344,8 @@ class YouTubePlayerManager {
     this._onEndedCbs.push(cb);
   }
 
-  onDurationChange(cb: Callback) {
-    this._onDurationChangeCbs.push(cb);
+  onError(cb: Callback) {
+    this._onErrorCbs.push(cb);
   }
 }
 
@@ -309,4 +365,9 @@ audioManager.onEnded(() => {
   } else {
     usePlayerStore.setState({ isPlaying: false, progress: 0, currentTime: 0 });
   }
+});
+
+audioManager.onError(() => {
+  toast.error("Could not play this song. Try another.");
+  usePlayerStore.setState({ isPlaying: false });
 });

@@ -126,7 +126,24 @@ export function EmotionDetectPage() {
     setLoadProgress(10);
     try {
       // Dynamic import to avoid SSR issues
-      const { default: Human } = await import("@vladmandic/human");
+      // biome-ignore lint/suspicious/noExplicitAny: dynamic CDN import
+      // Load via CDN to avoid bundler resolution
+      await new Promise<void>((resolve, reject) => {
+        if ((window as any).Human) {
+          resolve();
+          return;
+        }
+        const s = document.createElement("script");
+        s.src =
+          "https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.esm.js";
+        s.type = "module";
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error("Failed to load detection library"));
+        document.head.appendChild(s);
+      });
+      // biome-ignore lint/suspicious/noExplicitAny: CDN global
+      const Human = (window as any).Human ?? (window as any).human;
+      if (!Human) throw new Error("Detection library not available");
       setLoadProgress(40);
       const human = new Human({
         modelBasePath: "https://cdn.jsdelivr.net/npm/@vladmandic/human/models/",

@@ -43,7 +43,7 @@ function toSong(item: YouTubeItem, index: number): Song {
   };
 }
 
-const YT_API_KEY = "AIzaSyBvsZ3vcj1Dlk4yXwA7f2aPvP1unBPPaC0";
+const YT_API_KEY = "AIzaSyCkFgMR_4K2G5UHVqVPnNcDJLerUnZxE78";
 
 export function SongSearchPage() {
   const navigate = useNavigate();

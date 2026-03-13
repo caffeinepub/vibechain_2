@@ -60,6 +60,19 @@ export function useSetMood() {
   });
 }
 
+const YT_API_KEY = "AIzaSyCkFgMR_4K2G5UHVqVPnNcDJLerUnZxE78";
+
+const MOOD_KEYWORDS: Record<string, string> = {
+  happy: "happy",
+  sad: "sad",
+  energetic: "energetic",
+  calm: "calm",
+  melancholic: "melancholic",
+  angry: "angry",
+  romantic: "romantic",
+  anxious: "anxious",
+};
+
 interface YouTubeItem {
   id?: { videoId?: string };
   snippet?: {
@@ -73,12 +86,23 @@ interface YouTubeItem {
 }
 
 export function useGetMusicSuggestions() {
-  const { actor } = useActor();
   return useMutation({
     mutationFn: async (mood: Mood) => {
-      if (!actor) throw new Error("Not connected");
-      const json = await actor.getMusicSuggestions(mood);
-      const parsed = JSON.parse(json) as { items?: YouTubeItem[] };
+      const moodKey = typeof mood === "string" ? mood : Object.keys(mood)[0];
+      const keyword = MOOD_KEYWORDS[moodKey] ?? moodKey;
+      const params = new URLSearchParams({
+        part: "snippet",
+        q: `${keyword} music`,
+        type: "video",
+        videoCategoryId: "10",
+        maxResults: "20",
+        key: YT_API_KEY,
+      });
+      const res = await fetch(
+        `https://www.googleapis.com/youtube/v3/search?${params}`,
+      );
+      if (!res.ok) throw new Error("YouTube API request failed");
+      const parsed = (await res.json()) as { items?: YouTubeItem[] };
       const items = parsed.items ?? [];
       return items
         .filter((item) => item.id?.videoId)
