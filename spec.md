@@ -1,24 +1,28 @@
 # VIBECHAIN
 
 ## Current State
-After login, the app checks `getCallerUserProfile()`. If a profile exists, it redirects to `/feed`. New users with no profile also get sent to `/feed` (via the catch block), skipping any onboarding. The backend already has `createUserProfile(username, mood, song)` and `updateUsername(newUsername)` methods.
+SongSearchPage has a search input with live iTunes results, play/pause preview, and "Set Vibe" button. There is no search history functionality.
 
 ## Requested Changes (Diff)
 
 ### Add
-- New `/setup-username` route and `UsernameSetupPage` component
-- After login, if `getCallerUserProfile()` returns null (new user), redirect to `/setup-username` instead of `/feed`
-- Username setup page: dark immersive design matching the rest of the app, text input for username, submit button that calls `createUserProfile(username, Mood.calm, null)` then navigates to `/feed`
-- Basic validation: username must be 3-20 chars, alphanumeric + underscores
+- Song search history: store the last N (up to 10) unique search queries in localStorage
+- When the search input is idle (no query typed), show a "Recent Searches" section below the header with the saved queries
+- Each history item is tappable to re-run that search
+- Each history item has an X button to remove it individually
+- A "Clear all" button to wipe the entire history
+- New searches are added to history when the user types a term and results are fetched successfully
 
 ### Modify
-- `LoginPage.tsx`: change the post-login redirect logic so new users (null profile) go to `/setup-username`
-- `App.tsx`: add `setupUsernameRoute` pointing to `UsernameSetupPage`
+- SongSearchPage idle state: replace the generic "Find your frequency" prompt with the recent searches list (when history exists), or fall back to the existing prompt when history is empty
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Create `src/frontend/src/pages/UsernameSetupPage.tsx` with username input form
-2. Update `LoginPage.tsx` to redirect new users to `/setup-username`
-3. Update `App.tsx` to register the new route
+1. Create a `useSearchHistory` custom hook that reads/writes to localStorage key `vibechain_search_history` (array of strings, max 10, most recent first)
+2. In SongSearchPage, import and use the hook
+3. On successful search, call `addToHistory(query)`
+4. When query is empty, render the recent searches section (if history non-empty) or the existing idle prompt
+5. Style the history section to match the dark immersive VIBECHAIN aesthetic
+6. Add deterministic `data-ocid` markers to history items and controls

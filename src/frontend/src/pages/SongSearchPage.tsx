@@ -3,11 +3,13 @@ import { Input } from "@/components/ui/input";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
+  Clock,
   Music2,
   Pause,
   Play,
   SearchIcon,
   Sparkles,
+  X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
@@ -15,6 +17,7 @@ import { toast } from "sonner";
 import type { Song } from "../backend";
 import { BottomNav } from "../components/BottomNav";
 import { useSetMood } from "../hooks/useQueries";
+import { useSearchHistory } from "../hooks/useSearchHistory";
 import { usePlayerStore } from "../store/playerStore";
 import { useVibeStore } from "../store/vibeStore";
 
@@ -41,6 +44,8 @@ export function SongSearchPage() {
   const { selectedMood } = useVibeStore();
   const { mutateAsync: setMood, isPending: isSettingMood } = useSetMood();
   const { setQueue, isPlaying, queue, currentIndex } = usePlayerStore();
+  const { history, addToHistory, removeFromHistory, clearHistory } =
+    useSearchHistory();
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Song[]>([]);
@@ -69,7 +74,11 @@ export function SongSearchPage() {
       );
       if (!res.ok) throw new Error("iTunes API error");
       const data = await res.json();
-      setResults((data.results as ItunesResult[]).map(toSong));
+      const songs = (data.results as ItunesResult[]).map(toSong);
+      setResults(songs);
+      if (songs.length > 0) {
+        addToHistory(term.trim());
+      }
     } catch {
       setHasError(true);
       setResults([]);
@@ -82,6 +91,11 @@ export function SongSearchPage() {
     setQuery(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => searchItunes(val), 400);
+  };
+
+  const handleHistoryItem = (item: string) => {
+    handleInput(item);
+    setQuery(item);
   };
 
   const togglePlay = (song: Song, index: number) => {
@@ -114,6 +128,9 @@ export function SongSearchPage() {
       setSettingVibeId(null);
     }
   };
+
+  const showHistory = !hasSearched && !isLoading && history.length > 0;
+  const showIdlePrompt = !hasSearched && !isLoading && history.length === 0;
 
   return (
     <div className="min-h-screen pb-24">
@@ -221,8 +238,84 @@ export function SongSearchPage() {
           </motion.div>
         )}
 
-        {/* Idle prompt */}
-        {!isLoading && !hasError && !hasSearched && (
+        {/* Recent Searches */}
+        <AnimatePresence>
+          {showHistory && (
+            <motion.div
+              data-ocid="search_history.section"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+            >
+              {/* Section header */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Clock size={14} className="text-muted-foreground" />
+                  <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                    Recent Searches
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  data-ocid="search_history.button"
+                  onClick={clearHistory}
+                  className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                >
+                  Clear all
+                </button>
+              </div>
+
+              {/* History items */}
+              <div className="space-y-2">
+                {history.map((item, i) => (
+                  <motion.div
+                    key={item}
+                    data-ocid={`search_history.item.${i + 1}`}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 8 }}
+                    transition={{ delay: i * 0.04, duration: 0.2 }}
+                    className="glass-card rounded-2xl flex items-center gap-3 px-4 py-3 border border-border/20 hover:border-primary/25 transition-all duration-200 group"
+                  >
+                    <Clock
+                      size={14}
+                      className="text-muted-foreground/50 flex-shrink-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleHistoryItem(item)}
+                      className="flex-1 text-left text-sm text-foreground/80 hover:text-foreground transition-colors truncate"
+                    >
+                      {item}
+                    </button>
+                    <button
+                      type="button"
+                      data-ocid={`search_history.delete_button.${i + 1}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFromHistory(item);
+                      }}
+                      aria-label={`Remove ${item} from history`}
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted/60 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
+                    >
+                      <X size={12} />
+                    </button>
+                  </motion.div>
+                ))}
+              </div>
+
+              {selectedMood && (
+                <div className="mt-4 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm text-center">
+                  Mood active — results set your vibe instantly
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Idle prompt — only shown when no history */}
+        {showIdlePrompt && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
