@@ -84,17 +84,9 @@ export function LoginPage() {
   }, [isLoginError, loginError]);
 
   const handleLogin = () => {
-    if (identity && actor && !isFetching) {
-      // Already authenticated — check profile and navigate directly
-      setChecking(true);
-      actor
-        .getCallerUserProfile()
-        .then((profile) => {
-          if (profile) navigate({ to: "/feed" });
-          else navigate({ to: "/setup-username" });
-        })
-        .catch(() => navigate({ to: "/setup-username" }))
-        .finally(() => setChecking(false));
+    if (identity) {
+      // Already authenticated (actor may still be loading) — wait via pendingLogin effect
+      setPendingLogin(true);
     } else {
       setPendingLogin(true);
       login();

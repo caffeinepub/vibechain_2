@@ -1,15 +1,37 @@
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "@tanstack/react-router";
-import { Music2, Plus, RefreshCw, Waves } from "lucide-react";
+import { Music2, Pause, Play, Plus, RefreshCw, Waves } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { useState } from "react";
 import type { VibeFeedEntry } from "../backend";
 import { BottomNav } from "../components/BottomNav";
-import { useVibeFeed } from "../hooks/useQueries";
+import { useCallerProfile, useVibeFeed } from "../hooks/useQueries";
+import { usePlayerStore } from "../store/playerStore";
 import { getMoodConfig } from "../utils/moodUtils";
 
 function FeedCard({ entry, index }: { entry: VibeFeedEntry; index: number }) {
   const mood = getMoodConfig(entry.currentMood);
+  const { queue, currentIndex, isPlaying, setQueue, toggle } = usePlayerStore();
+  const currentSong = queue[currentIndex];
+  const isThisSongPlaying =
+    isPlaying &&
+    currentSong &&
+    entry.currentSong &&
+    currentSong.previewUrl === entry.currentSong.previewUrl;
+
+  const handlePlay = () => {
+    if (!entry.currentSong?.previewUrl) return;
+    if (
+      currentSong &&
+      currentSong.previewUrl === entry.currentSong.previewUrl
+    ) {
+      toggle();
+    } else {
+      setQueue([entry.currentSong], 0);
+    }
+  };
+
   return (
     <motion.div
       data-ocid={`feed.item.${index + 1}`}
@@ -61,7 +83,7 @@ function FeedCard({ entry, index }: { entry: VibeFeedEntry; index: number }) {
                   <Music2 size={14} className="text-muted-foreground" />
                 </div>
               )}
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium truncate">
                   {entry.currentSong.title}
                 </p>
@@ -69,18 +91,45 @@ function FeedCard({ entry, index }: { entry: VibeFeedEntry; index: number }) {
                   {entry.currentSong.artist}
                 </p>
               </div>
-              {/* Waveform indicator */}
-              <div className="flex items-end gap-0.5 ml-auto flex-shrink-0">
-                {[1, 2, 3, 4].map((b) => (
-                  <div
-                    key={b}
-                    className={`w-0.5 rounded-full ${mood.textColor.replace("text-", "bg-")}`}
+              {/* Play/Pause or Waveform */}
+              <div className="ml-auto flex-shrink-0 flex items-center">
+                {entry.currentSong.previewUrl ? (
+                  <motion.button
+                    data-ocid={`feed.item.${index + 1}.toggle`}
+                    onClick={handlePlay}
+                    className="w-7 h-7 rounded-full flex items-center justify-center transition-all"
                     style={{
-                      height: `${6 + b * 3}px`,
-                      animation: `waveform ${0.5 + b * 0.15}s ease-in-out infinite alternate`,
+                      background: isThisSongPlaying
+                        ? mood.glowColor.replace("0.6", "0.3")
+                        : "oklch(0.25 0.04 285 / 0.6)",
+                      boxShadow: isThisSongPlaying
+                        ? `0 0 10px ${mood.glowColor.replace("0.6", "0.5")}`
+                        : "none",
                     }}
-                  />
-                ))}
+                    whileHover={{ scale: 1.15 }}
+                    whileTap={{ scale: 0.88 }}
+                    aria-label={isThisSongPlaying ? "Pause" : "Play"}
+                  >
+                    {isThisSongPlaying ? (
+                      <Pause size={12} className="text-white" />
+                    ) : (
+                      <Play size={12} className="text-white ml-0.5" />
+                    )}
+                  </motion.button>
+                ) : (
+                  <div className="flex items-end gap-0.5">
+                    {[1, 2, 3, 4].map((b) => (
+                      <div
+                        key={b}
+                        className={`w-0.5 rounded-full ${mood.textColor.replace("text-", "bg-")}`}
+                        style={{
+                          height: `${6 + b * 3}px`,
+                          animation: `waveform ${0.5 + b * 0.15}s ease-in-out infinite alternate`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -93,6 +142,13 @@ function FeedCard({ entry, index }: { entry: VibeFeedEntry; index: number }) {
 export function VibeFeedPage() {
   const navigate = useNavigate();
   const { data: feed, isLoading, isError, refetch, isFetching } = useVibeFeed();
+  const { data: profile } = useCallerProfile();
+  const [tab, setTab] = useState<"everyone" | "mine">("everyone");
+
+  const displayFeed =
+    tab === "mine" && profile
+      ? (feed ?? []).filter((e) => e.username === profile.username)
+      : (feed ?? []);
 
   return (
     <div className="min-h-screen pb-24">
@@ -131,6 +187,56 @@ export function VibeFeedPage() {
             </Button>
           </div>
         </div>
+
+        {/* Tab toggle — only shown when authenticated */}
+        {profile && (
+          <div className="max-w-2xl mx-auto mt-3">
+            <div className="inline-flex rounded-full p-0.5 bg-muted/30 border border-border/30 backdrop-blur-sm">
+              <button
+                type="button"
+                data-ocid="feed.everyone_tab"
+                onClick={() => setTab("everyone")}
+                className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
+                  tab === "everyone"
+                    ? "text-white shadow-md"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                style={
+                  tab === "everyone"
+                    ? {
+                        background:
+                          "linear-gradient(135deg, oklch(0.55 0.26 295), oklch(0.62 0.28 330))",
+                        boxShadow: "0 0 12px oklch(0.55 0.26 295 / 0.4)",
+                      }
+                    : {}
+                }
+              >
+                Everyone
+              </button>
+              <button
+                type="button"
+                data-ocid="feed.my_vibes_tab"
+                onClick={() => setTab("mine")}
+                className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
+                  tab === "mine"
+                    ? "text-white shadow-md"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                style={
+                  tab === "mine"
+                    ? {
+                        background:
+                          "linear-gradient(135deg, oklch(0.55 0.26 295), oklch(0.62 0.28 330))",
+                        boxShadow: "0 0 12px oklch(0.55 0.26 295 / 0.4)",
+                      }
+                    : {}
+                }
+              >
+                My Vibes
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6">
@@ -156,6 +262,34 @@ export function VibeFeedPage() {
               Try Again
             </Button>
           </div>
+        ) : tab === "mine" &&
+          profile &&
+          displayFeed.length === 0 &&
+          !isLoading ? (
+          <motion.div
+            data-ocid="feed.empty_state"
+            className="text-center py-20"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+          >
+            <div className="text-6xl mb-4">🎵</div>
+            <h3 className="font-display text-xl font-bold mb-2">
+              You haven't shared a vibe yet
+            </h3>
+            <p className="text-muted-foreground text-sm mb-6">
+              Let the world feel your frequency
+            </p>
+            <Button
+              onClick={() => navigate({ to: "/mood" })}
+              data-ocid="feed.share_vibe_button"
+              style={{
+                background:
+                  "linear-gradient(135deg, oklch(0.55 0.26 295), oklch(0.62 0.28 330))",
+              }}
+            >
+              Share My Vibe
+            </Button>
+          </motion.div>
         ) : !feed || feed.length === 0 ? (
           <motion.div
             data-ocid="feed.empty_state"
@@ -183,7 +317,7 @@ export function VibeFeedPage() {
         ) : (
           <div className="space-y-3" data-ocid="feed.list">
             <AnimatePresence>
-              {feed.slice(0, 20).map((entry, i) => (
+              {displayFeed.slice(0, 20).map((entry, i) => (
                 <FeedCard
                   key={`${entry.username}-${i}`}
                   entry={entry}

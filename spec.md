@@ -1,28 +1,24 @@
 # VIBECHAIN
 
 ## Current State
-SongSearchPage has a search input with live iTunes results, play/pause preview, and "Set Vibe" button. There is no search history functionality.
+The VibeFeed page shows all users' vibe entries via `getVibeFeed()`. There is no way for a user to filter the feed to see only their own posts.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Song search history: store the last N (up to 10) unique search queries in localStorage
-- When the search input is idle (no query typed), show a "Recent Searches" section below the header with the saved queries
-- Each history item is tappable to re-run that search
-- Each history item has an X button to remove it individually
-- A "Clear all" button to wipe the entire history
-- New searches are added to history when the user types a term and results are fetched successfully
+- Tab toggle on the VibeFeed page: "Everyone" and "My Vibes"
+- "My Vibes" tab filters the feed to show only entries matching the logged-in user's username (from `getCallerUserProfile()`)
+- Empty state for "My Vibes" when the user has no posts
 
 ### Modify
-- SongSearchPage idle state: replace the generic "Find your frequency" prompt with the recent searches list (when history exists), or fall back to the existing prompt when history is empty
+- VibeFeed page to include tab UI and filtered rendering logic
 
 ### Remove
-- Nothing removed
+Nothing removed
 
 ## Implementation Plan
-1. Create a `useSearchHistory` custom hook that reads/writes to localStorage key `vibechain_search_history` (array of strings, max 10, most recent first)
-2. In SongSearchPage, import and use the hook
-3. On successful search, call `addToHistory(query)`
-4. When query is empty, render the recent searches section (if history non-empty) or the existing idle prompt
-5. Style the history section to match the dark immersive VIBECHAIN aesthetic
-6. Add deterministic `data-ocid` markers to history items and controls
+1. Import `useCallerProfile` in VibeFeed page
+2. Add a tab state ("everyone" | "mine") with a styled toggle
+3. When "My Vibes" is selected, filter `feed` entries where `entry.username === profile?.username`
+4. Show a relevant empty state when no personal entries exist
+5. Only show the tab toggle when the user is authenticated (has a profile)
