@@ -1,24 +1,26 @@
 # VIBECHAIN
 
 ## Current State
-The VibeFeed page shows all users' vibe entries via `getVibeFeed()`. There is no way for a user to filter the feed to see only their own posts.
+The vibe feed shows all users' current mood/song from their UserProfile. A "My Vibes" tab filters the feed to the authenticated user's own entry. There is no way to remove yourself from the feed once you've set a vibe.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Tab toggle on the VibeFeed page: "Everyone" and "My Vibes"
-- "My Vibes" tab filters the feed to show only entries matching the logged-in user's username (from `getCallerUserProfile()`)
-- Empty state for "My Vibes" when the user has no posts
+- `clearCurrentVibe()` backend function: sets the caller's `isVibeLive` flag to false, effectively removing them from the public feed
+- `isVibeLive: Bool` field on `UserProfile` to track whether a user's vibe is currently active/visible in the feed
+- Delete button on feed cards in the "My Vibes" tab — confirms deletion, then calls `clearCurrentVibe()`
 
 ### Modify
-- VibeFeed page to include tab UI and filtered rendering logic
+- `getVibeFeed()` to only return users where `isVibeLive == true`
+- `setMood()` to also set `isVibeLive = true` when a new vibe is set
+- `createUserProfile()` to set `isVibeLive = true` initially
 
 ### Remove
-Nothing removed
+- Nothing
 
 ## Implementation Plan
-1. Import `useCallerProfile` in VibeFeed page
-2. Add a tab state ("everyone" | "mine") with a styled toggle
-3. When "My Vibes" is selected, filter `feed` entries where `entry.username === profile?.username`
-4. Show a relevant empty state when no personal entries exist
-5. Only show the tab toggle when the user is authenticated (has a profile)
+1. Add `isVibeLive: Bool` to `UserProfile` type in backend
+2. Update `createUserProfile`, `setMood`, `saveCallerUserProfile` to default/handle `isVibeLive`
+3. Filter `getVibeFeed` to only include entries where `isVibeLive == true`
+4. Add `clearCurrentVibe()` public shared function
+5. Frontend: Add delete button to FeedCard when rendered in "My Vibes" tab, call `clearCurrentVibe` on confirm, refetch feed

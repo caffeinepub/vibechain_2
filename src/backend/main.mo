@@ -7,11 +7,13 @@ import Runtime "mo:core/Runtime";
 import Map "mo:core/Map";
 import Principal "mo:core/Principal";
 import Time "mo:core/Time";
-
 import OutCall "http-outcalls/outcall";
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
+import Migration "migration";
 
+// Explicit with migration due to persistent anonymizer id
+(with migration = Migration.run)
 actor {
   // Custom types
   public type Mood = {
@@ -45,6 +47,7 @@ actor {
     currentMood : Mood;
     currentSong : ?Song;
     moodHistory : [MoodHistoryEntry];
+    isVibeLive : Bool;
   };
 
   public type VibeFeedEntry = {
@@ -111,7 +114,6 @@ actor {
 
   // Public: Get any user's profile by username (for public vibe feed)
   public query func getProfile(username : Text) : async ?UserProfile {
-    // Public access - no auth check needed
     for ((principal, profile) in userProfiles.entries()) {
       if (profile.username == username) {
         return ?profile;
@@ -122,15 +124,16 @@ actor {
 
   // Public: Get vibe feed (all users' current mood and song)
   public query func getVibeFeed() : async [VibeFeedEntry] {
-    // Public access - no auth check needed per spec
-    userProfiles.values().toArray().map(
+    userProfiles.values().toArray().filter(
+      func(profile) { profile.isVibeLive }
+    ).map(
       func(profile : UserProfile) : VibeFeedEntry {
         {
           username = profile.username;
           currentMood = profile.currentMood;
           currentSong = profile.currentSong;
         };
-      },
+      }
     );
   };
 
@@ -163,6 +166,7 @@ actor {
           currentMood = mood;
           currentSong = song;
           moodHistory = newMoodHistory;
+          isVibeLive = true; // Set vibe as live
         };
       };
       case (null) {
@@ -172,9 +176,30 @@ actor {
     userProfiles.add(caller, updatedProfile);
   };
 
-  // Public: Get music suggestions for a mood (calls iTunes API)
-  public shared func getMusicSuggestions(mood : Mood) : async Text {
-    // Public access - no auth check needed
+  // Clear (hide) current vibe from the feed
+  public shared ({ caller }) func clearCurrentVibe() : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can clear vibe");
+    };
+
+    switch (userProfiles.get(caller)) {
+      case (?profile) {
+        if (not profile.isVibeLive) {
+          Runtime.trap("No live vibe to clear");
+        };
+        userProfiles.add(caller, { profile with isVibeLive = false });
+      };
+      case (null) {
+        Runtime.trap("User profile not found");
+      };
+    };
+  };
+
+  // Get music suggestions for a mood (calls iTunes API) - requires authentication to prevent cycle drainage
+  public shared ({ caller }) func getMusicSuggestions(mood : Mood) : async Text {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can get music suggestions");
+    };
     let keyword = moodToKeyword(mood);
     let url = "https://itunes.apple.com/search?term=" # keyword # "&media=music&limit=20&entity=song";
     let response = await OutCall.httpGetRequest(url, [], transform);
@@ -216,6 +241,7 @@ actor {
           };
         }
       ];
+      isVibeLive = true;
     };
     userProfiles.add(caller, profile);
   };

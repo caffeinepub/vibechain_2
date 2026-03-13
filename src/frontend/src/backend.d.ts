@@ -42,6 +42,7 @@ export interface Song {
 export interface UserProfile {
     username: string;
     moodHistory: Array<MoodHistoryEntry>;
+    isVibeLive: boolean;
     currentMood: Mood;
     currentSong?: Song;
 }
@@ -66,6 +67,7 @@ export enum UserRole {
 }
 export interface backendInterface {
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    clearCurrentVibe(): Promise<void>;
     createUserProfile(username: string, mood: Mood, song: Song | null): Promise<void>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;

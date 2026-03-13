@@ -43,6 +43,7 @@ export interface TransformationOutput {
 export interface UserProfile {
   'username' : string,
   'moodHistory' : Array<MoodHistoryEntry>,
+  'isVibeLive' : boolean,
   'currentMood' : Mood,
   'currentSong' : [] | [Song],
 }
@@ -63,6 +64,7 @@ export interface http_request_result {
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'clearCurrentVibe' : ActorMethod<[], undefined>,
   'createUserProfile' : ActorMethod<[string, Mood, [] | [Song]], undefined>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,

@@ -39,6 +39,7 @@ export const MoodHistoryEntry = IDL.Record({
 export const UserProfile = IDL.Record({
   'username' : IDL.Text,
   'moodHistory' : IDL.Vec(MoodHistoryEntry),
+  'isVibeLive' : IDL.Bool,
   'currentMood' : Mood,
   'currentSong' : IDL.Opt(Song),
 });
@@ -69,6 +70,7 @@ export const TransformationOutput = IDL.Record({
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'clearCurrentVibe' : IDL.Func([], [], []),
   'createUserProfile' : IDL.Func([IDL.Text, Mood, IDL.Opt(Song)], [], []),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
@@ -125,6 +127,7 @@ export const idlFactory = ({ IDL }) => {
   const UserProfile = IDL.Record({
     'username' : IDL.Text,
     'moodHistory' : IDL.Vec(MoodHistoryEntry),
+    'isVibeLive' : IDL.Bool,
     'currentMood' : Mood,
     'currentSong' : IDL.Opt(Song),
   });
@@ -152,6 +155,7 @@ export const idlFactory = ({ IDL }) => {
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'clearCurrentVibe' : IDL.Func([], [], []),
     'createUserProfile' : IDL.Func([IDL.Text, Mood, IDL.Opt(Song)], [], []),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),

@@ -124,6 +124,7 @@ export interface Song {
 export interface UserProfile {
     username: string;
     moodHistory: Array<MoodHistoryEntry>;
+    isVibeLive: boolean;
     currentMood: Mood;
     currentSong?: Song;
 }
@@ -149,6 +150,7 @@ export enum UserRole {
 export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    clearCurrentVibe(): Promise<void>;
     createUserProfile(username: string, mood: Mood, song: Song | null): Promise<void>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
@@ -190,6 +192,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n1(this._uploadFile, this._downloadFile, arg1));
+            return result;
+        }
+    }
+    async clearCurrentVibe(): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.clearCurrentVibe();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.clearCurrentVibe();
             return result;
         }
     }
@@ -419,17 +435,20 @@ function from_candid_record_n19(_uploadFile: (file: ExternalBlob) => Promise<Uin
 function from_candid_record_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     username: string;
     moodHistory: Array<_MoodHistoryEntry>;
+    isVibeLive: boolean;
     currentMood: _Mood;
     currentSong: [] | [_Song];
 }): {
     username: string;
     moodHistory: Array<MoodHistoryEntry>;
+    isVibeLive: boolean;
     currentMood: Mood;
     currentSong?: Song;
 } {
     return {
         username: value.username,
         moodHistory: from_candid_vec_n9(_uploadFile, _downloadFile, value.moodHistory),
+        isVibeLive: value.isVibeLive,
         currentMood: from_candid_Mood_n12(_uploadFile, _downloadFile, value.currentMood),
         currentSong: record_opt_to_undefined(from_candid_opt_n14(_uploadFile, _downloadFile, value.currentSong))
     };
@@ -486,17 +505,20 @@ function to_candid_opt_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Arra
 function to_candid_record_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     username: string;
     moodHistory: Array<MoodHistoryEntry>;
+    isVibeLive: boolean;
     currentMood: Mood;
     currentSong?: Song;
 }): {
     username: string;
     moodHistory: Array<_MoodHistoryEntry>;
+    isVibeLive: boolean;
     currentMood: _Mood;
     currentSong: [] | [_Song];
 } {
     return {
         username: value.username,
         moodHistory: to_candid_vec_n22(_uploadFile, _downloadFile, value.moodHistory),
+        isVibeLive: value.isVibeLive,
         currentMood: to_candid_Mood_n3(_uploadFile, _downloadFile, value.currentMood),
         currentSong: value.currentSong ? candid_some(value.currentSong) : candid_none()
     };

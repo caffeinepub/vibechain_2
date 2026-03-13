@@ -1,24 +1,57 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "@tanstack/react-router";
-import { Music2, Pause, Play, Plus, RefreshCw, Waves } from "lucide-react";
+import {
+  Music2,
+  Pause,
+  Play,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Waves,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import type { VibeFeedEntry } from "../backend";
 import { BottomNav } from "../components/BottomNav";
+import { useActor } from "../hooks/useActor";
 import { useCallerProfile, useVibeFeed } from "../hooks/useQueries";
 import { usePlayerStore } from "../store/playerStore";
 import { getMoodConfig } from "../utils/moodUtils";
 
-function FeedCard({ entry, index }: { entry: VibeFeedEntry; index: number }) {
+function FeedCard({
+  entry,
+  index,
+  isOwn,
+  onDelete,
+}: {
+  entry: VibeFeedEntry;
+  index: number;
+  isOwn?: boolean;
+  onDelete?: () => void;
+}) {
   const mood = getMoodConfig(entry.currentMood);
   const { queue, currentIndex, isPlaying, setQueue, toggle } = usePlayerStore();
+  const { actor } = useActor();
   const currentSong = queue[currentIndex];
   const isThisSongPlaying =
     isPlaying &&
     currentSong &&
     entry.currentSong &&
     currentSong.previewUrl === entry.currentSong.previewUrl;
+
+  const [showDialog, setShowDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handlePlay = () => {
     if (!entry.currentSong?.previewUrl) return;
@@ -32,110 +65,184 @@ function FeedCard({ entry, index }: { entry: VibeFeedEntry; index: number }) {
     }
   };
 
+  const handleConfirmDelete = async () => {
+    if (!actor) return;
+    setIsDeleting(true);
+    try {
+      await actor.clearCurrentVibe();
+      setShowDialog(false);
+      onDelete?.();
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
-    <motion.div
-      data-ocid={`feed.item.${index + 1}`}
-      className="glass-card rounded-2xl p-4 border border-border/30 transition-all duration-200 hover:border-primary/20"
-      style={{ boxShadow: `0 0 20px ${mood.glowColor.replace("0.6", "0.15")}` }}
-      initial={{ opacity: 0, y: 15 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.07 }}
-    >
-      <div className="flex items-start gap-3">
-        {/* Avatar orb */}
-        <div
-          className="w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center text-xl font-bold"
-          style={{
-            background: `radial-gradient(circle at 30% 30%, ${mood.glowColor.replace(
-              "0.6",
-              "0.5",
-            )}, oklch(0.15 0.05 285))`,
-            boxShadow: `0 0 16px ${mood.glowColor.replace("0.6", "0.4")}`,
-          }}
-        >
-          {entry.username.charAt(0).toUpperCase()}
-        </div>
+    <>
+      <motion.div
+        data-ocid={`feed.item.${index + 1}`}
+        className="glass-card rounded-2xl p-4 border border-border/30 transition-all duration-200 hover:border-primary/20 relative group"
+        style={{
+          boxShadow: `0 0 20px ${mood.glowColor.replace("0.6", "0.15")}`,
+        }}
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ delay: index * 0.07 }}
+      >
+        {/* Delete button — top-right, visible on hover (desktop) or always (mobile) */}
+        {isOwn && (
+          <motion.button
+            data-ocid={`feed.delete_vibe_button.${index + 1}`}
+            onClick={() => setShowDialog(true)}
+            className="absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center
+              text-muted-foreground hover:text-destructive hover:bg-destructive/10
+              transition-all duration-200
+              opacity-100 md:opacity-0 md:group-hover:opacity-100"
+            whileHover={{ scale: 1.15 }}
+            whileTap={{ scale: 0.88 }}
+            aria-label="Delete vibe"
+          >
+            <Trash2 size={13} />
+          </motion.button>
+        )}
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-sm">{entry.username}</span>
-            <span
-              className={`text-xs px-2 py-0.5 rounded-full bg-muted/40 ${mood.textColor}`}
-            >
-              {mood.emoji} {mood.label}
-            </span>
+        <div className="flex items-start gap-3">
+          {/* Avatar orb */}
+          <div
+            className="w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center text-xl font-bold"
+            style={{
+              background: `radial-gradient(circle at 30% 30%, ${mood.glowColor.replace(
+                "0.6",
+                "0.5",
+              )}, oklch(0.15 0.05 285))`,
+              boxShadow: `0 0 16px ${mood.glowColor.replace("0.6", "0.4")}`,
+            }}
+          >
+            {entry.username.charAt(0).toUpperCase()}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {mood.description}
-          </p>
 
-          {entry.currentSong && (
-            <div className="mt-3 flex items-center gap-2 p-2 rounded-xl bg-muted/20 border border-border/30">
-              {entry.currentSong.artworkUrl ? (
-                <img
-                  src={entry.currentSong.artworkUrl}
-                  alt={entry.currentSong.title}
-                  className="w-8 h-8 rounded-lg object-cover flex-shrink-0"
-                  loading="lazy"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                  <Music2 size={14} className="text-muted-foreground" />
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium truncate">
-                  {entry.currentSong.title}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {entry.currentSong.artist}
-                </p>
-              </div>
-              {/* Play/Pause or Waveform */}
-              <div className="ml-auto flex-shrink-0 flex items-center">
-                {entry.currentSong.previewUrl ? (
-                  <motion.button
-                    data-ocid={`feed.item.${index + 1}.toggle`}
-                    onClick={handlePlay}
-                    className="w-7 h-7 rounded-full flex items-center justify-center transition-all"
-                    style={{
-                      background: isThisSongPlaying
-                        ? mood.glowColor.replace("0.6", "0.3")
-                        : "oklch(0.25 0.04 285 / 0.6)",
-                      boxShadow: isThisSongPlaying
-                        ? `0 0 10px ${mood.glowColor.replace("0.6", "0.5")}`
-                        : "none",
-                    }}
-                    whileHover={{ scale: 1.15 }}
-                    whileTap={{ scale: 0.88 }}
-                    aria-label={isThisSongPlaying ? "Pause" : "Play"}
-                  >
-                    {isThisSongPlaying ? (
-                      <Pause size={12} className="text-white" />
-                    ) : (
-                      <Play size={12} className="text-white ml-0.5" />
-                    )}
-                  </motion.button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-sm">{entry.username}</span>
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full bg-muted/40 ${mood.textColor}`}
+              >
+                {mood.emoji} {mood.label}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {mood.description}
+            </p>
+
+            {entry.currentSong && (
+              <div className="mt-3 flex items-center gap-2 p-2 rounded-xl bg-muted/20 border border-border/30">
+                {entry.currentSong.artworkUrl ? (
+                  <img
+                    src={entry.currentSong.artworkUrl}
+                    alt={entry.currentSong.title}
+                    className="w-8 h-8 rounded-lg object-cover flex-shrink-0"
+                    loading="lazy"
+                  />
                 ) : (
-                  <div className="flex items-end gap-0.5">
-                    {[1, 2, 3, 4].map((b) => (
-                      <div
-                        key={b}
-                        className={`w-0.5 rounded-full ${mood.textColor.replace("text-", "bg-")}`}
-                        style={{
-                          height: `${6 + b * 3}px`,
-                          animation: `waveform ${0.5 + b * 0.15}s ease-in-out infinite alternate`,
-                        }}
-                      />
-                    ))}
+                  <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                    <Music2 size={14} className="text-muted-foreground" />
                   </div>
                 )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium truncate">
+                    {entry.currentSong.title}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {entry.currentSong.artist}
+                  </p>
+                </div>
+                {/* Play/Pause or Waveform */}
+                <div className="ml-auto flex-shrink-0 flex items-center">
+                  {entry.currentSong.previewUrl ? (
+                    <motion.button
+                      data-ocid={`feed.item.${index + 1}.toggle`}
+                      onClick={handlePlay}
+                      className="w-7 h-7 rounded-full flex items-center justify-center transition-all"
+                      style={{
+                        background: isThisSongPlaying
+                          ? mood.glowColor.replace("0.6", "0.3")
+                          : "oklch(0.25 0.04 285 / 0.6)",
+                        boxShadow: isThisSongPlaying
+                          ? `0 0 10px ${mood.glowColor.replace("0.6", "0.5")}`
+                          : "none",
+                      }}
+                      whileHover={{ scale: 1.15 }}
+                      whileTap={{ scale: 0.88 }}
+                      aria-label={isThisSongPlaying ? "Pause" : "Play"}
+                    >
+                      {isThisSongPlaying ? (
+                        <Pause size={12} className="text-white" />
+                      ) : (
+                        <Play size={12} className="text-white ml-0.5" />
+                      )}
+                    </motion.button>
+                  ) : (
+                    <div className="flex items-end gap-0.5">
+                      {[1, 2, 3, 4].map((b) => (
+                        <div
+                          key={b}
+                          className={`w-0.5 rounded-full ${mood.textColor.replace("text-", "bg-")}`}
+                          style={{
+                            height: `${6 + b * 3}px`,
+                            animation: `waveform ${0.5 + b * 0.15}s ease-in-out infinite alternate`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
-    </motion.div>
+      </motion.div>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={showDialog} onOpenChange={setShowDialog}>
+        <AlertDialogContent
+          data-ocid="feed.delete_vibe_dialog"
+          className="glass-card border border-border/40"
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display text-lg font-bold">
+              Delete your vibe?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground text-sm">
+              This will remove your vibe from the feed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              data-ocid="feed.delete_vibe_cancel_button"
+              disabled={isDeleting}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              data-ocid="feed.delete_vibe_confirm_button"
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+            >
+              {isDeleting ? (
+                <span className="flex items-center gap-2">
+                  <RefreshCw size={13} className="animate-spin" />
+                  Deleting…
+                </span>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -322,6 +429,8 @@ export function VibeFeedPage() {
                   key={`${entry.username}-${i}`}
                   entry={entry}
                   index={i}
+                  isOwn={tab === "mine" && !!profile}
+                  onDelete={() => refetch()}
                 />
               ))}
             </AnimatePresence>
