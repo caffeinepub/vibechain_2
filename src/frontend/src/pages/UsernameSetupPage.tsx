@@ -3,10 +3,11 @@ import { Input } from "@/components/ui/input";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2, Sparkles } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Mood } from "../backend";
 import { MoodOrbs } from "../components/MoodOrbs";
 import { useActor } from "../hooks/useActor";
+import { useInternetIdentity } from "../hooks/useInternetIdentity";
 
 function validateUsername(value: string): string | null {
   if (value.length < 3) return "Too short — at least 3 characters";
@@ -19,9 +20,17 @@ function validateUsername(value: string): string | null {
 export function UsernameSetupPage() {
   const navigate = useNavigate();
   const { actor } = useActor();
+  const { identity, isInitializing } = useInternetIdentity();
   const [username, setUsername] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isInitializing && !identity) {
+      navigate({ to: "/login" });
+    }
+  }, [isInitializing, identity, navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -36,7 +45,10 @@ export function UsernameSetupPage() {
       setError(validationError);
       return;
     }
-    if (!actor) return;
+    if (!actor) {
+      setError("Still connecting — please wait a moment and try again.");
+      return;
+    }
 
     setSubmitting(true);
     setError(null);

@@ -75,13 +75,30 @@ export function LoginPage() {
 
   useEffect(() => {
     if (isLoginError && loginError) {
-      toast.error(loginError.message ?? "Login failed");
+      // Suppress "already authenticated" error — it's handled gracefully
+      const msg = loginError.message ?? "";
+      if (!msg.toLowerCase().includes("already authenticated")) {
+        toast.error(msg || "Login failed");
+      }
     }
   }, [isLoginError, loginError]);
 
   const handleLogin = () => {
-    setPendingLogin(true);
-    login();
+    if (identity && actor && !isFetching) {
+      // Already authenticated — check profile and navigate directly
+      setChecking(true);
+      actor
+        .getCallerUserProfile()
+        .then((profile) => {
+          if (profile) navigate({ to: "/feed" });
+          else navigate({ to: "/setup-username" });
+        })
+        .catch(() => navigate({ to: "/setup-username" }))
+        .finally(() => setChecking(false));
+    } else {
+      setPendingLogin(true);
+      login();
+    }
   };
 
   const isLoading = isInitializing || isLoggingIn || checking;
