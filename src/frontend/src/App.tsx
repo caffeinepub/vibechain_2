@@ -13,6 +13,7 @@ import { MoodSelectorPage } from "./pages/MoodSelector";
 import { ProfilePage } from "./pages/Profile";
 import { SongPickerPage } from "./pages/SongPicker";
 import { SongSearchPage } from "./pages/SongSearchPage";
+import { UsernameSetupPage } from "./pages/UsernameSetupPage";
 import { VibeFeedPage } from "./pages/VibeFeed";
 
 const rootRoute = createRootRoute({
@@ -43,6 +44,11 @@ const signupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/signup",
   component: LoginPage,
+});
+const usernameSetupRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/setup-username",
+  component: UsernameSetupPage,
 });
 const moodRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -80,6 +86,7 @@ const routeTree = rootRoute.addChildren([
   landingOldRoute,
   loginRoute,
   signupRoute,
+  usernameSetupRoute,
   moodRoute,
   songPickerRoute,
   feedRoute,

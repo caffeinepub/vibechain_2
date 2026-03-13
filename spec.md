@@ -1,34 +1,24 @@
 # VIBECHAIN
 
 ## Current State
-The app has a MoodSelector page where users manually pick from 8 moods, and a SongSearchPage to find songs via the iTunes API. There is no camera-based emotion detection.
+After login, the app checks `getCallerUserProfile()`. If a profile exists, it redirects to `/feed`. New users with no profile also get sent to `/feed` (via the catch block), skipping any onboarding. The backend already has `createUserProfile(username, mood, song)` and `updateUsername(newUsername)` methods.
 
 ## Requested Changes (Diff)
 
 ### Add
-- A new `EmotionDetect` page/component (`/detect-mood`) that:
-  - Uses the device camera via the `camera` Caffeine component
-  - Loads `face-api.js` (tiny face detection + expression recognition models from CDN/npm)
-  - Streams live camera feed, detects dominant facial expression (happy, sad, angry, surprised, disgusted, fearful, neutral)
-  - Maps detected emotion -> one of the 8 VIBECHAIN moods
-  - Shows a real-time emotion overlay on the camera feed
-  - When confident emotion detected, displays result and offers "Use This Mood" button that navigates to song picker
-- A "Detect My Vibe" button/entry point on the MoodSelector page that links to `/detect-mood`
+- New `/setup-username` route and `UsernameSetupPage` component
+- After login, if `getCallerUserProfile()` returns null (new user), redirect to `/setup-username` instead of `/feed`
+- Username setup page: dark immersive design matching the rest of the app, text input for username, submit button that calls `createUserProfile(username, Mood.calm, null)` then navigates to `/feed`
+- Basic validation: username must be 3-20 chars, alphanumeric + underscores
 
 ### Modify
-- `MoodSelector.tsx`: Add a prominent "Detect My Vibe" camera button at the top of the page
-- `App.tsx`: Register the new `/detect-mood` route
+- `LoginPage.tsx`: change the post-login redirect logic so new users (null profile) go to `/setup-username`
+- `App.tsx`: add `setupUsernameRoute` pointing to `UsernameSetupPage`
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Install `face-api.js` npm package in the frontend
-2. Create `src/frontend/src/pages/EmotionDetectPage.tsx`:
-   - Camera stream via getUserMedia
-   - face-api.js tiny models loaded from CDN (tinyFaceDetector + faceExpressionNet)
-   - Emotion -> mood mapping utility
-   - Real-time detection loop with requestAnimationFrame
-   - Confidence threshold display, "Use This Mood" CTA
-3. Update `MoodSelector.tsx` to add "Detect My Vibe" entry button
-4. Update `App.tsx` to add the new route
+1. Create `src/frontend/src/pages/UsernameSetupPage.tsx` with username input form
+2. Update `LoginPage.tsx` to redirect new users to `/setup-username`
+3. Update `App.tsx` to register the new route

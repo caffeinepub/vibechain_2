@@ -192,7 +192,7 @@ export function InternetIdentityProvider({
       currentIdentity instanceof DelegationIdentity &&
       isDelegationValid(currentIdentity.getDelegation())
     ) {
-      handleLoginSuccess();
+      setErrorMessage("User is already authenticated");
       return;
     }
 

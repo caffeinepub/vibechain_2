@@ -23,7 +23,7 @@ export function LoginPage() {
   const [pendingLogin, setPendingLogin] = useState(false);
   const [autoChecked, setAutoChecked] = useState(false);
 
-  // Auto-redirect if already logged in
+  // Auto-redirect if already logged in (returning users only)
   useEffect(() => {
     if (isInitializing || isFetching || autoChecked) return;
     if (!identity || !actor) {
@@ -40,7 +40,7 @@ export function LoginPage() {
         if (profile) {
           navigate({ to: "/feed" });
         }
-        // else stay on login page for new users
+        // New users (no profile) stay on login page
       })
       .catch(() => {
         // ignore errors on auto-check
@@ -48,7 +48,7 @@ export function LoginPage() {
       .finally(() => setChecking(false));
   }, [isInitializing, isFetching, identity, actor, autoChecked, navigate]);
 
-  // After manual login, check profile and redirect
+  // After manual login, check profile and redirect accordingly
   useEffect(() => {
     if (!pendingLogin) return;
     if (!identity || isFetching || !actor) return;
@@ -58,11 +58,17 @@ export function LoginPage() {
 
     actor
       .getCallerUserProfile()
-      .then(() => {
-        navigate({ to: "/feed" });
+      .then((profile) => {
+        if (profile) {
+          navigate({ to: "/feed" });
+        } else {
+          // New user — go to username setup
+          navigate({ to: "/setup-username" });
+        }
       })
       .catch(() => {
-        navigate({ to: "/feed" });
+        // Likely no profile yet
+        navigate({ to: "/setup-username" });
       })
       .finally(() => setChecking(false));
   }, [pendingLogin, identity, isFetching, actor, navigate]);
