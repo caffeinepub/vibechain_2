@@ -1,5 +1,6 @@
 import { Progress } from "@/components/ui/progress";
 import { useNavigate } from "@tanstack/react-router";
+import Human from "@vladmandic/human";
 import { Camera, RefreshCw, Sparkles, Zap } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -10,10 +11,14 @@ import { useGetMusicSuggestions } from "../hooks/useQueries";
 import { useVibeStore } from "../store/vibeStore";
 import { MOOD_CONFIGS } from "../utils/moodUtils";
 
-// face-api.js loaded via CDN script tag
-declare const faceapi: any;
-
-const CDN_BASE = "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights";
+const human = new Human({
+  modelBasePath: "https://vladmandic.github.io/human/models",
+  face: { enabled: true, emotion: { enabled: true } },
+  body: { enabled: false },
+  hand: { enabled: false },
+  gesture: { enabled: false },
+  object: { enabled: false },
+});
 
 type DetectionState = "idle" | "loading" | "scanning" | "result" | "error";
 
@@ -23,11 +28,13 @@ interface DetectedEmotion {
   rawExpression: string;
 }
 
-function mapExpressionToMood(
-  expressions: Record<string, number>,
+function mapEmotionToMood(
+  emotions: { emotion: string; score: number }[],
 ): DetectedEmotion {
-  const sorted = Object.entries(expressions).sort(([, a], [, b]) => b - a);
-  const [topExpr, topConf] = sorted[0];
+  if (!emotions || emotions.length === 0) {
+    return { mood: Mood.calm, confidence: 0, rawExpression: "neutral" };
+  }
+  const top = emotions[0];
   const mapping: Record<string, Mood> = {
     happy: Mood.happy,
     sad: Mood.sad,
@@ -37,29 +44,8 @@ function mapExpressionToMood(
     disgusted: Mood.angry,
     neutral: Mood.calm,
   };
-  const mood = mapping[topExpr] ?? Mood.calm;
-  return { mood, confidence: topConf, rawExpression: topExpr };
-}
-
-function loadFaceApiScript(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (typeof faceapi !== "undefined") {
-      resolve();
-      return;
-    }
-    const existing = document.querySelector("script[data-faceapi]");
-    if (existing) {
-      existing.addEventListener("load", () => resolve());
-      return;
-    }
-    const script = document.createElement("script");
-    script.src =
-      "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js";
-    script.setAttribute("data-faceapi", "true");
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load face-api.js"));
-    document.head.appendChild(script);
-  });
+  const mood = mapping[top.emotion] ?? Mood.calm;
+  return { mood, confidence: top.score, rawExpression: top.emotion };
 }
 
 export function EmotionDetectPage() {
@@ -100,14 +86,10 @@ export function EmotionDetectPage() {
       idx++;
       if (!videoRef.current || !modelsReadyRef.current) return;
       try {
-        const result = await (faceapi as any)
-          .detectSingleFace(
-            videoRef.current,
-            new (faceapi as any).TinyFaceDetectorOptions(),
-          )
-          .withFaceExpressions();
-        if (result?.expressions) {
-          const emotion = mapExpressionToMood(result.expressions);
+        const result = await human.detect(videoRef.current);
+        const emotions = result.face?.[0]?.emotion;
+        if (emotions && emotions.length > 0) {
+          const emotion = mapEmotionToMood(emotions);
           const stab = stabilityRef.current;
           if (stab.mood === emotion.mood) {
             stab.count++;
@@ -148,11 +130,9 @@ export function EmotionDetectPage() {
     setState("loading");
     setLoadProgress(10);
     try {
-      await loadFaceApiScript();
-      setLoadProgress(40);
-      await (faceapi as any).nets.tinyFaceDetector.loadFromUri(CDN_BASE);
-      setLoadProgress(70);
-      await (faceapi as any).nets.faceExpressionNet.loadFromUri(CDN_BASE);
+      await human.load();
+      setLoadProgress(50);
+      await human.warmup();
       setLoadProgress(100);
       modelsReadyRef.current = true;
       await startCamera();
@@ -166,14 +146,10 @@ export function EmotionDetectPage() {
     if (!videoRef.current || !modelsReadyRef.current) return;
     if (intervalRef.current) clearInterval(intervalRef.current);
     try {
-      const result = await (faceapi as any)
-        .detectSingleFace(
-          videoRef.current,
-          new (faceapi as any).TinyFaceDetectorOptions(),
-        )
-        .withFaceExpressions();
-      if (result?.expressions) {
-        const emotion = mapExpressionToMood(result.expressions);
+      const result = await human.detect(videoRef.current);
+      const emotions = result.face?.[0]?.emotion;
+      if (emotions && emotions.length > 0) {
+        const emotion = mapEmotionToMood(emotions);
         setDetected(emotion);
         setState("result");
       } else {
