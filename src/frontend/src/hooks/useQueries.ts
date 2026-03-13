@@ -60,33 +60,40 @@ export function useSetMood() {
   });
 }
 
+interface YouTubeItem {
+  id?: { videoId?: string };
+  snippet?: {
+    title?: string;
+    channelTitle?: string;
+    thumbnails?: {
+      medium?: { url?: string };
+      high?: { url?: string };
+    };
+  };
+}
+
 export function useGetMusicSuggestions() {
   const { actor } = useActor();
   return useMutation({
     mutationFn: async (mood: Mood) => {
       if (!actor) throw new Error("Not connected");
       const json = await actor.getMusicSuggestions(mood);
-      const parsed = JSON.parse(json) as { results?: ItunesTrack[] };
-      const results = parsed.results ?? [];
-      return results
-        .filter((r) => r.previewUrl)
+      const parsed = JSON.parse(json) as { items?: YouTubeItem[] };
+      const items = parsed.items ?? [];
+      return items
+        .filter((item) => item.id?.videoId)
         .map(
-          (r): Song => ({
-            trackId: BigInt(r.trackId ?? 0),
-            title: r.trackName ?? "Unknown Track",
-            artist: r.artistName ?? "Unknown Artist",
-            artworkUrl: r.artworkUrl100 ?? "",
-            previewUrl: r.previewUrl ?? "",
+          (item, index): Song => ({
+            trackId: BigInt(index + 1),
+            title: item.snippet?.title ?? "Unknown Track",
+            artist: item.snippet?.channelTitle ?? "Unknown Artist",
+            artworkUrl:
+              item.snippet?.thumbnails?.high?.url ??
+              item.snippet?.thumbnails?.medium?.url ??
+              "",
+            previewUrl: item.id?.videoId ?? "",
           }),
         );
     },
   });
-}
-
-interface ItunesTrack {
-  trackId?: number;
-  trackName?: string;
-  artistName?: string;
-  artworkUrl100?: string;
-  previewUrl?: string;
 }

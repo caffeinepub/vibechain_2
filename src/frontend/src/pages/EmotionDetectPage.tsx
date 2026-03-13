@@ -1,6 +1,5 @@
 import { Progress } from "@/components/ui/progress";
 import { useNavigate } from "@tanstack/react-router";
-import * as faceapi from "@vladmandic/face-api";
 import { Camera, RefreshCw, Sparkles, Zap } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,8 +10,6 @@ import { useGetMusicSuggestions } from "../hooks/useQueries";
 import { useVibeStore } from "../store/vibeStore";
 import { MOOD_CONFIGS } from "../utils/moodUtils";
 
-const MODEL_URL = "https://vladmandic.github.io/face-api/model/";
-
 type DetectionState = "idle" | "loading" | "scanning" | "result" | "error";
 
 interface DetectedEmotion {
@@ -22,24 +19,23 @@ interface DetectedEmotion {
 }
 
 function mapExpressionToMood(
-  expressions: faceapi.FaceExpressions,
+  emotions: { emotion: string; score: number }[],
 ): DetectedEmotion {
-  const entries = Object.entries(expressions) as [string, number][];
-  entries.sort((a, b) => b[1] - a[1]);
-  const [topExpr, topScore] = entries[0];
-
+  if (!emotions || emotions.length === 0) {
+    return { mood: Mood.calm, confidence: 0.5, rawExpression: "neutral" };
+  }
+  const top = emotions.reduce((a, b) => (a.score > b.score ? a : b));
   const mapping: Record<string, Mood> = {
     happy: Mood.happy,
     sad: Mood.sad,
     angry: Mood.angry,
-    surprised: Mood.energetic,
-    fearful: Mood.anxious,
-    disgusted: Mood.angry,
+    surprise: Mood.energetic,
+    fear: Mood.anxious,
+    disgust: Mood.angry,
     neutral: Mood.calm,
   };
-
-  const mood = mapping[topExpr] ?? Mood.calm;
-  return { mood, confidence: topScore, rawExpression: topExpr };
+  const mood = mapping[top.emotion] ?? Mood.calm;
+  return { mood, confidence: top.score, rawExpression: top.emotion };
 }
 
 export function EmotionDetectPage() {
@@ -47,6 +43,8 @@ export function EmotionDetectPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // biome-ignore lint/suspicious/noExplicitAny: dynamic import of @vladmandic/human
+  const humanRef = useRef<any>(null);
   const stabilityRef = useRef<{ mood: Mood | null; count: number }>({
     mood: null,
     count: 0,
@@ -65,47 +63,46 @@ export function EmotionDetectPage() {
   const stopCamera = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (streamRef.current) {
-      for (const track of streamRef.current.getTracks()) {
-        track.stop();
-      }
+      for (const track of streamRef.current.getTracks()) track.stop();
       streamRef.current = null;
     }
   }, []);
 
+  const detectOnce = useCallback(async (): Promise<DetectedEmotion | null> => {
+    if (!videoRef.current || !humanRef.current || !modelsReadyRef.current)
+      return null;
+    try {
+      const result = await humanRef.current.detect(videoRef.current);
+      const face = result?.face?.[0];
+      if (!face) return null;
+      return mapExpressionToMood(face.emotion ?? []);
+    } catch {
+      return null;
+    }
+  }, []);
+
   const startDetectionLoop = useCallback(() => {
-    const expressions = ["😊", "🔍", "✨", "🎭", "💫"];
+    const icons = ["😊", "🔍", "✨", "🎭", "💫"];
     let idx = 0;
     intervalRef.current = setInterval(async () => {
-      setScanningLabel(expressions[idx % expressions.length]);
+      setScanningLabel(icons[idx % icons.length]);
       idx++;
-      if (!videoRef.current || !modelsReadyRef.current) return;
-      try {
-        const detections = await faceapi
-          .detectAllFaces(
-            videoRef.current,
-            new faceapi.TinyFaceDetectorOptions(),
-          )
-          .withFaceExpressions();
-        if (detections && detections.length > 0) {
-          const emotion = mapExpressionToMood(detections[0].expressions);
-          const stab = stabilityRef.current;
-          if (stab.mood === emotion.mood) {
-            stab.count++;
-            if (stab.count >= 3) {
-              if (intervalRef.current) clearInterval(intervalRef.current);
-              setDetected(emotion);
-              setState("result");
-            }
-          } else {
-            stab.mood = emotion.mood;
-            stab.count = 1;
-          }
+      const emotion = await detectOnce();
+      if (!emotion) return;
+      const stab = stabilityRef.current;
+      if (stab.mood === emotion.mood) {
+        stab.count++;
+        if (stab.count >= 3) {
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          setDetected(emotion);
+          setState("result");
         }
-      } catch {
-        // silently ignore detection frame errors
+      } else {
+        stab.mood = emotion.mood;
+        stab.count = 1;
       }
     }, 500);
-  }, []);
+  }, [detectOnce]);
 
   const startCamera = useCallback(async () => {
     try {
@@ -128,11 +125,22 @@ export function EmotionDetectPage() {
     setState("loading");
     setLoadProgress(10);
     try {
-      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-      setLoadProgress(60);
-      await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
-      setLoadProgress(100);
+      // Dynamic import to avoid SSR issues
+      const { default: Human } = await import("@vladmandic/human");
+      setLoadProgress(40);
+      const human = new Human({
+        modelBasePath: "https://cdn.jsdelivr.net/npm/@vladmandic/human/models/",
+        face: { enabled: true, emotion: { enabled: true } },
+        body: { enabled: false },
+        hand: { enabled: false },
+        object: { enabled: false },
+      });
+      await human.load();
+      setLoadProgress(90);
+      await human.warmup();
+      humanRef.current = human;
       modelsReadyRef.current = true;
+      setLoadProgress(100);
       await startCamera();
     } catch {
       setState("error");
@@ -141,22 +149,13 @@ export function EmotionDetectPage() {
   }, [startCamera]);
 
   const handleScanNow = async () => {
-    if (!videoRef.current || !modelsReadyRef.current) return;
     if (intervalRef.current) clearInterval(intervalRef.current);
-    try {
-      const detections = await faceapi
-        .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions())
-        .withFaceExpressions();
-      if (detections && detections.length > 0) {
-        const emotion = mapExpressionToMood(detections[0].expressions);
-        setDetected(emotion);
-        setState("result");
-      } else {
-        toast.error("No face detected. Make sure your face is visible.");
-        startDetectionLoop();
-      }
-    } catch {
-      toast.error("Detection failed. Try again.");
+    const emotion = await detectOnce();
+    if (emotion) {
+      setDetected(emotion);
+      setState("result");
+    } else {
+      toast.error("No face detected. Make sure your face is visible.");
       startDetectionLoop();
     }
   };
@@ -180,7 +179,6 @@ export function EmotionDetectPage() {
     }
   };
 
-  // Only cleanup on unmount — do NOT auto-call loadModels here
   useEffect(() => {
     return () => stopCamera();
   }, [stopCamera]);
@@ -215,7 +213,6 @@ export function EmotionDetectPage() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 space-y-6">
-        {/* Idle — prompt user to allow camera (must be triggered by user gesture) */}
         <AnimatePresence>
           {state === "idle" && (
             <motion.div
@@ -240,7 +237,6 @@ export function EmotionDetectPage() {
               >
                 <Camera className="w-9 h-9 text-violet-300" />
               </motion.div>
-
               <div className="space-y-2">
                 <h2 className="font-display text-2xl font-bold text-foreground">
                   Read Your Vibe
@@ -250,7 +246,6 @@ export function EmotionDetectPage() {
                   mood automatically and suggest matching music.
                 </p>
               </div>
-
               <div className="space-y-3">
                 <motion.button
                   data-ocid="detect.primary_button"
@@ -276,7 +271,6 @@ export function EmotionDetectPage() {
           )}
         </AnimatePresence>
 
-        {/* Loading state */}
         <AnimatePresence>
           {state === "loading" && (
             <motion.div
@@ -301,7 +295,6 @@ export function EmotionDetectPage() {
           )}
         </AnimatePresence>
 
-        {/* Error state */}
         <AnimatePresence>
           {state === "error" && (
             <motion.div
@@ -331,7 +324,6 @@ export function EmotionDetectPage() {
           )}
         </AnimatePresence>
 
-        {/* Camera feed + scanning */}
         <AnimatePresence>
           {(state === "scanning" || state === "result") && (
             <motion.div
@@ -339,7 +331,6 @@ export function EmotionDetectPage() {
               animate={{ opacity: 1, y: 0 }}
               className="space-y-4"
             >
-              {/* Camera preview */}
               <div
                 data-ocid="detect.canvas_target"
                 className="relative rounded-3xl overflow-hidden aspect-[4/3]"
@@ -347,11 +338,7 @@ export function EmotionDetectPage() {
                   boxShadow: detectedConfig
                     ? `0 0 40px ${detectedConfig.glowColor}, 0 0 80px ${detectedConfig.glowColor}40`
                     : "0 0 40px oklch(0.65 0.25 290 / 0.4)",
-                  border: `2px solid ${
-                    detectedConfig
-                      ? detectedConfig.glowColor
-                      : "oklch(0.65 0.25 290 / 0.5)"
-                  }`,
+                  border: `2px solid ${detectedConfig ? detectedConfig.glowColor : "oklch(0.65 0.25 290 / 0.5)"}`,
                   transition: "box-shadow 0.6s ease, border-color 0.6s ease",
                 }}
               >
@@ -362,7 +349,6 @@ export function EmotionDetectPage() {
                   playsInline
                   className="w-full h-full object-cover scale-x-[-1]"
                 />
-
                 {state === "scanning" && (
                   <div className="absolute inset-0 flex flex-col items-center justify-end pb-4 bg-gradient-to-t from-black/60 to-transparent">
                     <motion.div
@@ -382,7 +368,6 @@ export function EmotionDetectPage() {
                 )}
               </div>
 
-              {/* Manual scan button */}
               {state === "scanning" && (
                 <motion.button
                   data-ocid="detect.secondary_button"
@@ -396,7 +381,6 @@ export function EmotionDetectPage() {
                 </motion.button>
               )}
 
-              {/* Result card */}
               <AnimatePresence>
                 {state === "result" && detected && detectedConfig && (
                   <motion.div
@@ -438,7 +422,6 @@ export function EmotionDetectPage() {
                       </div>
                     </div>
 
-                    {/* Confidence bar */}
                     <div className="space-y-1.5">
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>Confidence</span>

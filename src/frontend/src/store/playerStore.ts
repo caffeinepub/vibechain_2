@@ -1,6 +1,27 @@
 import { create } from "zustand";
 import type { Song } from "../backend";
 
+declare global {
+  interface Window {
+    YT: {
+      Player: new (elementId: string, config: object) => YTPlayer;
+      PlayerState: { ENDED: number; PLAYING: number; PAUSED: number };
+      ready: (cb: () => void) => void;
+    };
+    onYouTubeIframeAPIReady: () => void;
+  }
+}
+
+interface YTPlayer {
+  loadVideoById(videoId: string): void;
+  playVideo(): void;
+  pauseVideo(): void;
+  seekTo(seconds: number, allowSeekAhead: boolean): void;
+  getCurrentTime(): number;
+  getDuration(): number;
+  destroy(): void;
+}
+
 interface PlayerState {
   queue: Song[];
   currentIndex: number;
@@ -113,49 +134,150 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
 }));
 
 // ---------------------------------------------------------------------------
-// AudioManager singleton
+// YouTubePlayerManager singleton
 // ---------------------------------------------------------------------------
 
 type Callback = () => void;
 type TimeCallback = (currentTime: number, duration: number) => void;
 
-class AudioManager {
-  audio: HTMLAudioElement;
+function loadYouTubeAPI(): Promise<void> {
+  return new Promise((resolve) => {
+    if (window.YT?.Player) {
+      resolve();
+      return;
+    }
+    const existing = document.getElementById("yt-iframe-api-script");
+    if (!existing) {
+      const script = document.createElement("script");
+      script.id = "yt-iframe-api-script";
+      script.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(script);
+    }
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      if (prev) prev();
+      resolve();
+    };
+  });
+}
+
+class YouTubePlayerManager {
+  private player: YTPlayer | null = null;
+  private _ready = false;
+  private _pendingSong: Song | null = null;
+  private _pollInterval: ReturnType<typeof setInterval> | null = null;
   private _onTimeUpdateCbs: TimeCallback[] = [];
   private _onEndedCbs: Callback[] = [];
   private _onDurationChangeCbs: Callback[] = [];
 
-  constructor() {
-    this.audio = new Audio();
-    this.audio.addEventListener("timeupdate", () => {
-      const { currentTime, duration } = this.audio;
-      for (const cb of this._onTimeUpdateCbs) cb(currentTime, duration || 0);
-    });
-    this.audio.addEventListener("ended", () => {
-      for (const cb of this._onEndedCbs) cb();
-    });
-    this.audio.addEventListener("durationchange", () => {
-      for (const cb of this._onDurationChangeCbs) cb();
+  private ensureContainer() {
+    if (!document.getElementById("yt-player-container")) {
+      const div = document.createElement("div");
+      div.id = "yt-player-container";
+      div.style.position = "fixed";
+      div.style.width = "1px";
+      div.style.height = "1px";
+      div.style.opacity = "0";
+      div.style.pointerEvents = "none";
+      div.style.zIndex = "-1";
+      document.body.appendChild(div);
+    }
+  }
+
+  private startPolling() {
+    if (this._pollInterval) return;
+    this._pollInterval = setInterval(() => {
+      if (!this.player) return;
+      try {
+        const currentTime = this.player.getCurrentTime();
+        const duration = this.player.getDuration();
+        for (const cb of this._onTimeUpdateCbs) cb(currentTime, duration || 0);
+      } catch {
+        // player not ready
+      }
+    }, 500);
+  }
+
+  private stopPolling() {
+    if (this._pollInterval) {
+      clearInterval(this._pollInterval);
+      this._pollInterval = null;
+    }
+  }
+
+  private async initPlayer(videoId: string) {
+    this.ensureContainer();
+    await loadYouTubeAPI();
+
+    if (this.player) {
+      try {
+        this.player.loadVideoById(videoId);
+        this._ready = true;
+        this.startPolling();
+        return;
+      } catch {
+        // fall through to recreate
+      }
+    }
+
+    this._ready = false;
+    this.player = new window.YT.Player("yt-player-container", {
+      videoId,
+      playerVars: { autoplay: 1, controls: 0, playsinline: 1 },
+      events: {
+        onReady: () => {
+          this._ready = true;
+          if (this._pendingSong) {
+            this.player?.loadVideoById(this._pendingSong.previewUrl);
+            this._pendingSong = null;
+          }
+          this.startPolling();
+        },
+        onStateChange: (event: { data: number }) => {
+          if (window.YT?.PlayerState?.ENDED === event.data) {
+            this.stopPolling();
+            for (const cb of this._onEndedCbs) cb();
+          }
+        },
+      },
     });
   }
 
   load(song: Song) {
-    this.audio.pause();
-    this.audio.src = song.previewUrl;
-    this.audio.currentTime = 0;
-    this.audio.play().catch(() => {});
+    if (!song.previewUrl) return;
+    this.initPlayer(song.previewUrl).catch(() => {});
   }
 
   play() {
-    this.audio.play().catch(() => {});
+    if (this.player && this._ready) {
+      try {
+        this.player.playVideo();
+        this.startPolling();
+      } catch {
+        // ignore
+      }
+    }
   }
 
   pause() {
-    this.audio.pause();
+    if (this.player && this._ready) {
+      try {
+        this.player.pauseVideo();
+      } catch {
+        // ignore
+      }
+    }
+    this.stopPolling();
   }
 
   seek(time: number) {
-    this.audio.currentTime = time;
+    if (this.player && this._ready) {
+      try {
+        this.player.seekTo(time, true);
+      } catch {
+        // ignore
+      }
+    }
   }
 
   onTimeUpdate(cb: TimeCallback) {
@@ -171,7 +293,7 @@ class AudioManager {
   }
 }
 
-export const audioManager = new AudioManager();
+export const audioManager = new YouTubePlayerManager();
 
 // Wire audioManager events → store updates
 audioManager.onTimeUpdate((currentTime, duration) => {

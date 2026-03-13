@@ -3,13 +3,11 @@ import { Input } from "@/components/ui/input";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
-  Clock,
   Music2,
   Pause,
   Play,
   SearchIcon,
   Sparkles,
-  X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
@@ -17,35 +15,41 @@ import { toast } from "sonner";
 import type { Song } from "../backend";
 import { BottomNav } from "../components/BottomNav";
 import { useSetMood } from "../hooks/useQueries";
-import { useSearchHistory } from "../hooks/useSearchHistory";
 import { usePlayerStore } from "../store/playerStore";
 import { useVibeStore } from "../store/vibeStore";
 
-interface ItunesResult {
-  trackId: number;
-  trackName: string;
-  artistName: string;
-  artworkUrl100: string;
-  previewUrl?: string;
-}
-
-function toSong(r: ItunesResult): Song {
-  return {
-    trackId: BigInt(r.trackId),
-    title: r.trackName,
-    artist: r.artistName,
-    artworkUrl: r.artworkUrl100,
-    previewUrl: r.previewUrl ?? "",
+interface YouTubeItem {
+  id?: { videoId?: string };
+  snippet?: {
+    title?: string;
+    channelTitle?: string;
+    thumbnails?: {
+      medium?: { url?: string };
+      high?: { url?: string };
+    };
   };
 }
+
+function toSong(item: YouTubeItem, index: number): Song {
+  return {
+    trackId: BigInt(index + 1),
+    title: item.snippet?.title ?? "Unknown Track",
+    artist: item.snippet?.channelTitle ?? "Unknown Artist",
+    artworkUrl:
+      item.snippet?.thumbnails?.high?.url ??
+      item.snippet?.thumbnails?.medium?.url ??
+      "",
+    previewUrl: item.id?.videoId ?? "",
+  };
+}
+
+const YT_API_KEY = "AIzaSyBvsZ3vcj1Dlk4yXwA7f2aPvP1unBPPaC0";
 
 export function SongSearchPage() {
   const navigate = useNavigate();
   const { selectedMood } = useVibeStore();
   const { mutateAsync: setMood, isPending: isSettingMood } = useSetMood();
   const { setQueue, isPlaying, queue, currentIndex } = usePlayerStore();
-  const { history, addToHistory, removeFromHistory, clearHistory } =
-    useSearchHistory();
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Song[]>([]);
@@ -58,7 +62,7 @@ export function SongSearchPage() {
 
   const currentSong = queue[currentIndex];
 
-  const searchItunes = async (term: string) => {
+  const searchYouTube = async (term: string) => {
     if (!term.trim()) {
       setResults([]);
       setHasSearched(false);
@@ -70,15 +74,15 @@ export function SongSearchPage() {
     setHasSearched(true);
     try {
       const res = await fetch(
-        `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&media=music&limit=25`,
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(term)}+music&type=video&videoCategoryId=10&maxResults=25&key=${YT_API_KEY}`,
       );
-      if (!res.ok) throw new Error("iTunes API error");
+      if (!res.ok) throw new Error("YouTube API error");
       const data = await res.json();
-      const songs = (data.results as ItunesResult[]).map(toSong);
+      const items = (data.items as YouTubeItem[]) ?? [];
+      const songs = items
+        .filter((item) => item.id?.videoId)
+        .map((item, index) => toSong(item, index));
       setResults(songs);
-      if (songs.length > 0) {
-        addToHistory(term.trim());
-      }
     } catch {
       setHasError(true);
       setResults([]);
@@ -90,12 +94,7 @@ export function SongSearchPage() {
   const handleInput = (val: string) => {
     setQuery(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => searchItunes(val), 400);
-  };
-
-  const handleHistoryItem = (item: string) => {
-    handleInput(item);
-    setQuery(item);
+    debounceRef.current = setTimeout(() => searchYouTube(val), 400);
   };
 
   const togglePlay = (song: Song, index: number) => {
@@ -129,12 +128,8 @@ export function SongSearchPage() {
     }
   };
 
-  const showHistory = !hasSearched && !isLoading && history.length > 0;
-  const showIdlePrompt = !hasSearched && !isLoading && history.length === 0;
-
   return (
     <div className="min-h-screen pb-24">
-      {/* Header */}
       <header className="sticky top-0 z-40 glass border-b border-border/30 px-4 py-4">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center gap-3 mb-4">
@@ -170,7 +165,6 @@ export function SongSearchPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6">
-        {/* Loading */}
         {isLoading && (
           <div data-ocid="search.loading_state" className="space-y-3">
             {["a", "b", "c", "d", "e", "f"].map((k) => (
@@ -189,7 +183,6 @@ export function SongSearchPage() {
           </div>
         )}
 
-        {/* Error */}
         {!isLoading && hasError && (
           <motion.div
             data-ocid="search.error_state"
@@ -202,7 +195,7 @@ export function SongSearchPage() {
             </div>
             <div>
               <p className="font-semibold text-foreground">
-                Couldn't reach iTunes
+                Couldn't reach YouTube
               </p>
               <p className="text-muted-foreground text-sm mt-1">
                 Check your connection and try again
@@ -210,7 +203,7 @@ export function SongSearchPage() {
             </div>
             <Button
               variant="outline"
-              onClick={() => searchItunes(query)}
+              onClick={() => searchYouTube(query)}
               className="rounded-xl"
             >
               Retry
@@ -218,7 +211,6 @@ export function SongSearchPage() {
           </motion.div>
         )}
 
-        {/* Empty state after search */}
         {!isLoading && !hasError && hasSearched && results.length === 0 && (
           <motion.div
             data-ocid="search.empty_state"
@@ -238,84 +230,7 @@ export function SongSearchPage() {
           </motion.div>
         )}
 
-        {/* Recent Searches */}
-        <AnimatePresence>
-          {showHistory && (
-            <motion.div
-              data-ocid="search_history.section"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-            >
-              {/* Section header */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Clock size={14} className="text-muted-foreground" />
-                  <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                    Recent Searches
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  data-ocid="search_history.button"
-                  onClick={clearHistory}
-                  className="text-xs text-muted-foreground hover:text-primary transition-colors"
-                >
-                  Clear all
-                </button>
-              </div>
-
-              {/* History items */}
-              <div className="space-y-2">
-                {history.map((item, i) => (
-                  <motion.div
-                    key={item}
-                    data-ocid={`search_history.item.${i + 1}`}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 8 }}
-                    transition={{ delay: i * 0.04, duration: 0.2 }}
-                    className="glass-card rounded-2xl flex items-center gap-3 px-4 py-3 border border-border/20 hover:border-primary/25 transition-all duration-200 group"
-                  >
-                    <Clock
-                      size={14}
-                      className="text-muted-foreground/50 flex-shrink-0"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleHistoryItem(item)}
-                      className="flex-1 text-left text-sm text-foreground/80 hover:text-foreground transition-colors truncate"
-                    >
-                      {item}
-                    </button>
-                    <button
-                      type="button"
-                      data-ocid={`search_history.delete_button.${i + 1}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeFromHistory(item);
-                      }}
-                      aria-label={`Remove ${item} from history`}
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted/60 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
-                    >
-                      <X size={12} />
-                    </button>
-                  </motion.div>
-                ))}
-              </div>
-
-              {selectedMood && (
-                <div className="mt-4 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm text-center">
-                  Mood active — results set your vibe instantly
-                </div>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Idle prompt — only shown when no history */}
-        {showIdlePrompt && (
+        {!hasSearched && !isLoading && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -340,7 +255,6 @@ export function SongSearchPage() {
           </motion.div>
         )}
 
-        {/* Results */}
         {!isLoading && !hasError && results.length > 0 && (
           <div className="grid grid-cols-1 gap-3">
             <AnimatePresence>
@@ -359,7 +273,6 @@ export function SongSearchPage() {
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ delay: i * 0.03, duration: 0.25 }}
                   >
-                    {/* Artwork */}
                     <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 bg-muted relative">
                       {song.artworkUrl ? (
                         <img
@@ -374,8 +287,6 @@ export function SongSearchPage() {
                         </div>
                       )}
                     </div>
-
-                    {/* Info */}
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm truncate leading-tight">
                         {song.title}
@@ -384,19 +295,13 @@ export function SongSearchPage() {
                         {song.artist}
                       </p>
                     </div>
-
-                    {/* Actions */}
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {song.previewUrl && (
                         <button
                           type="button"
                           onClick={() => togglePlay(song, i)}
                           data-ocid={`search.toggle.${i + 1}`}
-                          className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                            isThisPlaying
-                              ? "bg-primary text-primary-foreground shadow-[0_0_12px_oklch(0.62_0.26_295/0.5)]"
-                              : "bg-muted/50 text-foreground hover:bg-muted"
-                          }`}
+                          className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${isThisPlaying ? "bg-primary text-primary-foreground shadow-[0_0_12px_oklch(0.62_0.26_295/0.5)]" : "bg-muted/50 text-foreground hover:bg-muted"}`}
                           aria-label={
                             isThisPlaying ? "Pause preview" : "Play preview"
                           }

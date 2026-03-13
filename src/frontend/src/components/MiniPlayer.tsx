@@ -1,14 +1,54 @@
 import { Music2, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { usePlayerStore } from "../store/playerStore";
+import { useRef, useState } from "react";
+import { audioManager, usePlayerStore } from "../store/playerStore";
 
 export function MiniPlayer() {
-  const { queue, currentIndex, isPlaying, progress, toggle, next, prev } =
-    usePlayerStore();
+  const {
+    queue,
+    currentIndex,
+    isPlaying,
+    progress,
+    duration,
+    toggle,
+    next,
+    prev,
+  } = usePlayerStore();
 
   const song = queue[currentIndex];
   const hasPrev = currentIndex > 0;
   const hasNext = currentIndex < queue.length - 1;
+
+  const barRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [hoverRatio, setHoverRatio] = useState<number | null>(null);
+
+  const getRatio = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!barRef.current) return null;
+    const rect = barRef.current.getBoundingClientRect();
+    const clientX =
+      "touches" in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  };
+
+  const doSeek = (ratio: number) => {
+    if (duration > 0) audioManager.seek(ratio * duration);
+  };
+
+  const fmt = (s: number) => {
+    if (!s || !Number.isFinite(s)) return "0:00";
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
+
+  const currentTime = progress * duration;
+  const displayRatio = hoverRatio !== null ? hoverRatio : progress;
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowRight") doSeek(Math.min(1, progress + 0.05));
+    if (e.key === "ArrowLeft") doSeek(Math.max(0, progress - 0.05));
+  };
 
   return (
     <AnimatePresence>
@@ -58,6 +98,11 @@ export function MiniPlayer() {
                 </p>
               </div>
 
+              {/* Time */}
+              <div className="text-xs text-white/40 font-mono flex-shrink-0 tabular-nums select-none">
+                {fmt(currentTime)}&nbsp;/&nbsp;{fmt(duration)}
+              </div>
+
               {/* Controls */}
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button
@@ -102,11 +147,71 @@ export function MiniPlayer() {
               </div>
             </div>
 
-            {/* Linear progress bar */}
-            <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/10">
+            {/* Seekable progress bar */}
+            <div
+              ref={barRef}
+              data-ocid="miniplayer.canvas_target"
+              role="slider"
+              tabIndex={0}
+              aria-label="Seek"
+              aria-valuenow={Math.round(progress * 100)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              className="relative h-[8px] bg-white/10 cursor-pointer select-none"
+              onClick={(e) => {
+                const r = getRatio(e);
+                if (r !== null) doSeek(r);
+              }}
+              onKeyDown={handleKeyDown}
+              onMouseMove={(e) => {
+                setHoverRatio(getRatio(e));
+                if (isDragging) {
+                  const r = getRatio(e);
+                  if (r !== null) doSeek(r);
+                }
+              }}
+              onMouseDown={(e) => {
+                setIsDragging(true);
+                const r = getRatio(e);
+                if (r !== null) doSeek(r);
+              }}
+              onMouseUp={() => setIsDragging(false)}
+              onMouseLeave={() => {
+                setHoverRatio(null);
+                setIsDragging(false);
+              }}
+              onTouchStart={(e) => {
+                const r = getRatio(e);
+                if (r !== null) doSeek(r);
+              }}
+              onTouchMove={(e) => {
+                const r = getRatio(e);
+                if (r !== null) doSeek(r);
+              }}
+            >
+              {/* Buffer shimmer */}
               <div
-                className="h-full bg-primary transition-[width] duration-300 ease-linear"
-                style={{ width: `${progress * 100}%` }}
+                className="absolute left-0 top-0 h-full bg-white/10 animate-pulse rounded-r-full transition-[width] duration-500"
+                style={{ width: `${Math.min(progress * 100 + 12, 100)}%` }}
+              />
+
+              {/* Played fill */}
+              <div
+                className="absolute left-0 top-0 h-full rounded-r-full transition-[width] duration-100 ease-linear"
+                style={{
+                  width: `${displayRatio * 100}%`,
+                  background: "oklch(0.62 0.26 295)",
+                  boxShadow: "0 0 8px oklch(0.62 0.26 295 / 0.7)",
+                }}
+              />
+
+              {/* Seek thumb */}
+              <div
+                className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-md pointer-events-none transition-opacity duration-150"
+                style={{
+                  left: `calc(${displayRatio * 100}% - 7px)`,
+                  opacity: hoverRatio !== null || isDragging ? 1 : 0,
+                }}
               />
             </div>
           </div>

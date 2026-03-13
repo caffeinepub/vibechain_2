@@ -195,13 +195,14 @@ actor {
     };
   };
 
-  // Get music suggestions for a mood (calls iTunes API) - requires authentication to prevent cycle drainage
+  // Get music suggestions for a mood (calls YouTube Data API v3)
   public shared ({ caller }) func getMusicSuggestions(mood : Mood) : async Text {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can get music suggestions");
     };
     let keyword = moodToKeyword(mood);
-    let url = "https://itunes.apple.com/search?term=" # keyword # "&media=music&limit=20&entity=song";
+    let apiKey = "AIzaSyBvsZ3vcj1Dlk4yXwA7f2aPvP1unBPPaC0";
+    let url = "https://www.googleapis.com/youtube/v3/search?part=snippet&q=" # keyword # "%20music&type=video&videoCategoryId=10&maxResults=20&key=" # apiKey;
     let response = await OutCall.httpGetRequest(url, [], transform);
     response;
   };
