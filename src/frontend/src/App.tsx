@@ -11,7 +11,9 @@ import { EmotionDetectPage } from "./pages/EmotionDetectPage";
 import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MoodSelectorPage } from "./pages/MoodSelector";
+import { PlaylistPage } from "./pages/PlaylistPage";
 import { ProfilePage } from "./pages/Profile";
+import { SharedPlaylistPage } from "./pages/SharedPlaylistPage";
 import { SongPickerPage } from "./pages/SongPicker";
 import { SongSearchPage } from "./pages/SongSearchPage";
 import { UsernameSetupPage } from "./pages/UsernameSetupPage";
@@ -82,6 +84,16 @@ const detectMoodRoute = createRoute({
   path: "/detect-mood",
   component: EmotionDetectPage,
 });
+const playlistRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/playlist",
+  component: PlaylistPage,
+});
+const sharedPlaylistRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/playlist/$username",
+  component: SharedPlaylistPage,
+});
 
 const routeTree = rootRoute.addChildren([
   landingRoute,
@@ -95,6 +107,8 @@ const routeTree = rootRoute.addChildren([
   profileRoute,
   searchRoute,
   detectMoodRoute,
+  playlistRoute,
+  sharedPlaylistRoute,
 ]);
 
 const router = createRouter({ routeTree });

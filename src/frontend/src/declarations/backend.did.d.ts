@@ -24,6 +24,11 @@ export interface MoodHistoryEntry {
   'mood' : Mood,
   'timestamp' : bigint,
 }
+export interface PlaylistEntry {
+  'mood' : Mood,
+  'song' : Song,
+  'addedAt' : bigint,
+}
 export interface Song {
   'title' : string,
   'previewUrl' : string,
@@ -43,6 +48,7 @@ export interface TransformationOutput {
 export interface UserProfile {
   'username' : string,
   'moodHistory' : Array<MoodHistoryEntry>,
+  'playlist' : Array<PlaylistEntry>,
   'isVibeLive' : boolean,
   'currentMood' : Mood,
   'currentSong' : [] | [Song],
@@ -69,11 +75,14 @@ export interface _SERVICE {
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getMusicSuggestions' : ActorMethod<[Mood], string>,
+  'getMyPlaylist' : ActorMethod<[], Array<PlaylistEntry>>,
   'getProfile' : ActorMethod<[string], [] | [UserProfile]>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getVibeFeed' : ActorMethod<[], Array<VibeFeedEntry>>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'removeFromPlaylist' : ActorMethod<[Mood, bigint], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'saveToPlaylist' : ActorMethod<[Mood, Song], undefined>,
   'setMood' : ActorMethod<[Mood, [] | [Song]], undefined>,
   'transform' : ActorMethod<[TransformationInput], TransformationOutput>,
   'updateUsername' : ActorMethod<[string], undefined>,

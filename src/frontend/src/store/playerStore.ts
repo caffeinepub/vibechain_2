@@ -237,8 +237,10 @@ class YouTubePlayerManager {
         autoplay: autoplay ? 1 : 0,
         controls: 0,
         playsinline: 1,
+        enablejsapi: 1,
         origin: window.location.origin,
       },
+      host: "https://www.youtube-nocookie.com",
       events: {
         onReady: () => {
           this._ready = true;
@@ -269,9 +271,20 @@ class YouTubePlayerManager {
             usePlayerStore.setState({ isPlaying: false });
           }
         },
-        onError: (_event: { data: number }) => {
+        onError: (event: { data: number }) => {
           this.stopPolling();
           usePlayerStore.setState({ isPlaying: false });
+          const msg =
+            event.data === 2
+              ? "Invalid video ID"
+              : event.data === 5
+                ? "HTML5 player error"
+                : event.data === 100
+                  ? "Video not found or private"
+                  : event.data === 101 || event.data === 150
+                    ? "Video cannot be played here"
+                    : "Could not play this song";
+          toast.error(`${msg}. Try another.`);
           for (const cb of this._onErrorCbs) cb();
         },
       },
@@ -368,6 +381,5 @@ audioManager.onEnded(() => {
 });
 
 audioManager.onError(() => {
-  toast.error("Could not play this song. Try another.");
   usePlayerStore.setState({ isPlaying: false });
 });

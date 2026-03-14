@@ -1,13 +1,26 @@
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "@tanstack/react-router";
-import { Check, Loader2, Music2, Pause, Play, Sparkles } from "lucide-react";
+import {
+  Bookmark,
+  BookmarkCheck,
+  Check,
+  Loader2,
+  Music2,
+  Pause,
+  Play,
+  Sparkles,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Song } from "../backend";
 import { BottomNav } from "../components/BottomNav";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
-import { useSetMood } from "../hooks/useQueries";
+import {
+  useMyPlaylist,
+  useSaveToPlaylist,
+  useSetMood,
+} from "../hooks/useQueries";
 import { usePlayerStore } from "../store/playerStore";
 import { useVibeStore } from "../store/vibeStore";
 import { getMoodConfig } from "../utils/moodUtils";
@@ -18,7 +31,10 @@ export function SongPickerPage() {
   const { mutateAsync: setMood, isPending } = useSetMood();
   const { identity, login, isLoggingIn } = useInternetIdentity();
   const { setQueue, isPlaying, queue, currentIndex } = usePlayerStore();
+  const { mutateAsync: saveToPlaylist } = useSaveToPlaylist();
+  const { data: myPlaylist } = useMyPlaylist();
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
+  const [savingId, setSavingId] = useState<bigint | null>(null);
 
   const currentSong = queue[currentIndex];
 
@@ -27,6 +43,15 @@ export function SongPickerPage() {
       navigate({ to: "/mood" });
     }
   }, [selectedMood, navigate]);
+
+  const isSaved = (song: Song) =>
+    selectedMood
+      ? (myPlaylist ?? []).some(
+          (e) =>
+            (e.mood as string) === (selectedMood as string) &&
+            e.song.trackId === song.trackId,
+        )
+      : false;
 
   const togglePlay = (song: Song, index: number) => {
     if (!song.previewUrl) return;
@@ -51,6 +76,22 @@ export function SongPickerPage() {
     } catch {
       toast.error("Failed to set vibe. Try again.");
       setSelectedSong(null);
+    }
+  };
+
+  const handleSave = async (song: Song) => {
+    if (!selectedMood) {
+      toast.error("Pick a mood first 🎭");
+      return;
+    }
+    setSavingId(song.trackId);
+    try {
+      await saveToPlaylist({ mood: selectedMood, song });
+      toast.success("Saved to playlist! 🔖");
+    } catch {
+      toast.error("Failed to save. Try again.");
+    } finally {
+      setSavingId(null);
     }
   };
 
@@ -122,6 +163,8 @@ export function SongPickerPage() {
                 const isThisPlaying = isCurrent && isPlaying;
                 const isChoosing =
                   isPending && selectedSong?.trackId === song.trackId;
+                const isSaving = savingId === song.trackId;
+                const saved = isSaved(song);
                 return (
                   <motion.div
                     key={String(song.trackId)}
@@ -177,6 +220,28 @@ export function SongPickerPage() {
                           )}
                         </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => handleSave(song)}
+                        data-ocid={`song.save_button.${i + 1}`}
+                        disabled={isSaving || saved}
+                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                          saved
+                            ? "bg-primary/20 text-primary"
+                            : "bg-muted/50 text-muted-foreground hover:bg-primary/20 hover:text-primary"
+                        } disabled:opacity-50`}
+                        aria-label={
+                          saved ? "Already saved" : "Save to playlist"
+                        }
+                      >
+                        {isSaving ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : saved ? (
+                          <BookmarkCheck size={14} />
+                        ) : (
+                          <Bookmark size={14} />
+                        )}
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleChoose(song)}

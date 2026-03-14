@@ -104,6 +104,11 @@ export interface TransformationOutput {
     body: Uint8Array;
     headers: Array<http_header>;
 }
+export interface PlaylistEntry {
+    mood: Mood;
+    song: Song;
+    addedAt: bigint;
+}
 export interface MoodHistoryEntry {
     songArtist: string;
     songTitle: string;
@@ -124,6 +129,7 @@ export interface Song {
 export interface UserProfile {
     username: string;
     moodHistory: Array<MoodHistoryEntry>;
+    playlist: Array<PlaylistEntry>;
     isVibeLive: boolean;
     currentMood: Mood;
     currentSong?: Song;
@@ -155,16 +161,19 @@ export interface backendInterface {
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getMusicSuggestions(mood: Mood): Promise<string>;
+    getMyPlaylist(): Promise<Array<PlaylistEntry>>;
     getProfile(username: string): Promise<UserProfile | null>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     getVibeFeed(): Promise<Array<VibeFeedEntry>>;
     isCallerAdmin(): Promise<boolean>;
+    removeFromPlaylist(mood: Mood, trackId: bigint): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    saveToPlaylist(mood: Mood, song: Song): Promise<void>;
     setMood(mood: Mood, song: Song | null): Promise<void>;
     transform(input: TransformationInput): Promise<TransformationOutput>;
     updateUsername(newUsername: string): Promise<void>;
 }
-import type { Mood as _Mood, MoodHistoryEntry as _MoodHistoryEntry, Song as _Song, UserProfile as _UserProfile, UserRole as _UserRole, VibeFeedEntry as _VibeFeedEntry } from "./declarations/backend.did.d.ts";
+import type { Mood as _Mood, MoodHistoryEntry as _MoodHistoryEntry, PlaylistEntry as _PlaylistEntry, Song as _Song, UserProfile as _UserProfile, UserRole as _UserRole, VibeFeedEntry as _VibeFeedEntry } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async _initializeAccessControlWithSecret(arg0: string): Promise<void> {
@@ -241,14 +250,14 @@ export class Backend implements backendInterface {
         if (this.processError) {
             try {
                 const result = await this.actor.getCallerUserRole();
-                return from_candid_UserRole_n15(this._uploadFile, this._downloadFile, result);
+                return from_candid_UserRole_n18(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCallerUserRole();
-            return from_candid_UserRole_n15(this._uploadFile, this._downloadFile, result);
+            return from_candid_UserRole_n18(this._uploadFile, this._downloadFile, result);
         }
     }
     async getMusicSuggestions(arg0: Mood): Promise<string> {
@@ -263,6 +272,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getMusicSuggestions(to_candid_Mood_n3(this._uploadFile, this._downloadFile, arg0));
             return result;
+        }
+    }
+    async getMyPlaylist(): Promise<Array<PlaylistEntry>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getMyPlaylist();
+                return from_candid_vec_n14(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getMyPlaylist();
+            return from_candid_vec_n14(this._uploadFile, this._downloadFile, result);
         }
     }
     async getProfile(arg0: string): Promise<UserProfile | null> {
@@ -297,14 +320,14 @@ export class Backend implements backendInterface {
         if (this.processError) {
             try {
                 const result = await this.actor.getVibeFeed();
-                return from_candid_vec_n17(this._uploadFile, this._downloadFile, result);
+                return from_candid_vec_n20(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getVibeFeed();
-            return from_candid_vec_n17(this._uploadFile, this._downloadFile, result);
+            return from_candid_vec_n20(this._uploadFile, this._downloadFile, result);
         }
     }
     async isCallerAdmin(): Promise<boolean> {
@@ -321,17 +344,45 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async saveCallerUserProfile(arg0: UserProfile): Promise<void> {
+    async removeFromPlaylist(arg0: Mood, arg1: bigint): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n20(this._uploadFile, this._downloadFile, arg0));
+                const result = await this.actor.removeFromPlaylist(to_candid_Mood_n3(this._uploadFile, this._downloadFile, arg0), arg1);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n20(this._uploadFile, this._downloadFile, arg0));
+            const result = await this.actor.removeFromPlaylist(to_candid_Mood_n3(this._uploadFile, this._downloadFile, arg0), arg1);
+            return result;
+        }
+    }
+    async saveCallerUserProfile(arg0: UserProfile): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n23(this._uploadFile, this._downloadFile, arg0));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n23(this._uploadFile, this._downloadFile, arg0));
+            return result;
+        }
+    }
+    async saveToPlaylist(arg0: Mood, arg1: Song): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.saveToPlaylist(to_candid_Mood_n3(this._uploadFile, this._downloadFile, arg0), arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.saveToPlaylist(to_candid_Mood_n3(this._uploadFile, this._downloadFile, arg0), arg1);
             return result;
         }
     }
@@ -384,16 +435,19 @@ function from_candid_MoodHistoryEntry_n10(_uploadFile: (file: ExternalBlob) => P
 function from_candid_Mood_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Mood): Mood {
     return from_candid_variant_n13(_uploadFile, _downloadFile, value);
 }
+function from_candid_PlaylistEntry_n15(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _PlaylistEntry): PlaylistEntry {
+    return from_candid_record_n16(_uploadFile, _downloadFile, value);
+}
 function from_candid_UserProfile_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserProfile): UserProfile {
     return from_candid_record_n8(_uploadFile, _downloadFile, value);
 }
-function from_candid_UserRole_n15(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
-    return from_candid_variant_n16(_uploadFile, _downloadFile, value);
+function from_candid_UserRole_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
+    return from_candid_variant_n19(_uploadFile, _downloadFile, value);
 }
-function from_candid_VibeFeedEntry_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _VibeFeedEntry): VibeFeedEntry {
-    return from_candid_record_n19(_uploadFile, _downloadFile, value);
+function from_candid_VibeFeedEntry_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _VibeFeedEntry): VibeFeedEntry {
+    return from_candid_record_n22(_uploadFile, _downloadFile, value);
 }
-function from_candid_opt_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Song]): Song | null {
+function from_candid_opt_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Song]): Song | null {
     return value.length === 0 ? null : value[0];
 }
 function from_candid_opt_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
@@ -417,7 +471,22 @@ function from_candid_record_n11(_uploadFile: (file: ExternalBlob) => Promise<Uin
         timestamp: value.timestamp
     };
 }
-function from_candid_record_n19(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_record_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    mood: _Mood;
+    song: _Song;
+    addedAt: bigint;
+}): {
+    mood: Mood;
+    song: Song;
+    addedAt: bigint;
+} {
+    return {
+        mood: from_candid_Mood_n12(_uploadFile, _downloadFile, value.mood),
+        song: value.song,
+        addedAt: value.addedAt
+    };
+}
+function from_candid_record_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     username: string;
     currentMood: _Mood;
     currentSong: [] | [_Song];
@@ -429,18 +498,20 @@ function from_candid_record_n19(_uploadFile: (file: ExternalBlob) => Promise<Uin
     return {
         username: value.username,
         currentMood: from_candid_Mood_n12(_uploadFile, _downloadFile, value.currentMood),
-        currentSong: record_opt_to_undefined(from_candid_opt_n14(_uploadFile, _downloadFile, value.currentSong))
+        currentSong: record_opt_to_undefined(from_candid_opt_n17(_uploadFile, _downloadFile, value.currentSong))
     };
 }
 function from_candid_record_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     username: string;
     moodHistory: Array<_MoodHistoryEntry>;
+    playlist: Array<_PlaylistEntry>;
     isVibeLive: boolean;
     currentMood: _Mood;
     currentSong: [] | [_Song];
 }): {
     username: string;
     moodHistory: Array<MoodHistoryEntry>;
+    playlist: Array<PlaylistEntry>;
     isVibeLive: boolean;
     currentMood: Mood;
     currentSong?: Song;
@@ -448,9 +519,10 @@ function from_candid_record_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint
     return {
         username: value.username,
         moodHistory: from_candid_vec_n9(_uploadFile, _downloadFile, value.moodHistory),
+        playlist: from_candid_vec_n14(_uploadFile, _downloadFile, value.playlist),
         isVibeLive: value.isVibeLive,
         currentMood: from_candid_Mood_n12(_uploadFile, _downloadFile, value.currentMood),
-        currentSong: record_opt_to_undefined(from_candid_opt_n14(_uploadFile, _downloadFile, value.currentSong))
+        currentSong: record_opt_to_undefined(from_candid_opt_n17(_uploadFile, _downloadFile, value.currentSong))
     };
 }
 function from_candid_variant_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
@@ -472,7 +544,7 @@ function from_candid_variant_n13(_uploadFile: (file: ExternalBlob) => Promise<Ui
 }): Mood {
     return "sad" in value ? Mood.sad : "melancholic" in value ? Mood.melancholic : "anxious" in value ? Mood.anxious : "happy" in value ? Mood.happy : "angry" in value ? Mood.angry : "romantic" in value ? Mood.romantic : "calm" in value ? Mood.calm : "energetic" in value ? Mood.energetic : value;
 }
-function from_candid_variant_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n19(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     admin: null;
 } | {
     user: null;
@@ -481,20 +553,26 @@ function from_candid_variant_n16(_uploadFile: (file: ExternalBlob) => Promise<Ui
 }): UserRole {
     return "admin" in value ? UserRole.admin : "user" in value ? UserRole.user : "guest" in value ? UserRole.guest : value;
 }
-function from_candid_vec_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_VibeFeedEntry>): Array<VibeFeedEntry> {
-    return value.map((x)=>from_candid_VibeFeedEntry_n18(_uploadFile, _downloadFile, x));
+function from_candid_vec_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_PlaylistEntry>): Array<PlaylistEntry> {
+    return value.map((x)=>from_candid_PlaylistEntry_n15(_uploadFile, _downloadFile, x));
+}
+function from_candid_vec_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_VibeFeedEntry>): Array<VibeFeedEntry> {
+    return value.map((x)=>from_candid_VibeFeedEntry_n21(_uploadFile, _downloadFile, x));
 }
 function from_candid_vec_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_MoodHistoryEntry>): Array<MoodHistoryEntry> {
     return value.map((x)=>from_candid_MoodHistoryEntry_n10(_uploadFile, _downloadFile, x));
 }
-function to_candid_MoodHistoryEntry_n23(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: MoodHistoryEntry): _MoodHistoryEntry {
-    return to_candid_record_n24(_uploadFile, _downloadFile, value);
+function to_candid_MoodHistoryEntry_n26(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: MoodHistoryEntry): _MoodHistoryEntry {
+    return to_candid_record_n27(_uploadFile, _downloadFile, value);
 }
 function to_candid_Mood_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Mood): _Mood {
     return to_candid_variant_n4(_uploadFile, _downloadFile, value);
 }
-function to_candid_UserProfile_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserProfile): _UserProfile {
-    return to_candid_record_n21(_uploadFile, _downloadFile, value);
+function to_candid_PlaylistEntry_n29(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: PlaylistEntry): _PlaylistEntry {
+    return to_candid_record_n30(_uploadFile, _downloadFile, value);
+}
+function to_candid_UserProfile_n23(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserProfile): _UserProfile {
+    return to_candid_record_n24(_uploadFile, _downloadFile, value);
 }
 function to_candid_UserRole_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
     return to_candid_variant_n2(_uploadFile, _downloadFile, value);
@@ -502,28 +580,31 @@ function to_candid_UserRole_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint
 function to_candid_opt_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Song | null): [] | [_Song] {
     return value === null ? candid_none() : candid_some(value);
 }
-function to_candid_record_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function to_candid_record_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     username: string;
     moodHistory: Array<MoodHistoryEntry>;
+    playlist: Array<PlaylistEntry>;
     isVibeLive: boolean;
     currentMood: Mood;
     currentSong?: Song;
 }): {
     username: string;
     moodHistory: Array<_MoodHistoryEntry>;
+    playlist: Array<_PlaylistEntry>;
     isVibeLive: boolean;
     currentMood: _Mood;
     currentSong: [] | [_Song];
 } {
     return {
         username: value.username,
-        moodHistory: to_candid_vec_n22(_uploadFile, _downloadFile, value.moodHistory),
+        moodHistory: to_candid_vec_n25(_uploadFile, _downloadFile, value.moodHistory),
+        playlist: to_candid_vec_n28(_uploadFile, _downloadFile, value.playlist),
         isVibeLive: value.isVibeLive,
         currentMood: to_candid_Mood_n3(_uploadFile, _downloadFile, value.currentMood),
         currentSong: value.currentSong ? candid_some(value.currentSong) : candid_none()
     };
 }
-function to_candid_record_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function to_candid_record_n27(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     songArtist: string;
     songTitle: string;
     mood: Mood;
@@ -539,6 +620,21 @@ function to_candid_record_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8
         songTitle: value.songTitle,
         mood: to_candid_Mood_n3(_uploadFile, _downloadFile, value.mood),
         timestamp: value.timestamp
+    };
+}
+function to_candid_record_n30(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    mood: Mood;
+    song: Song;
+    addedAt: bigint;
+}): {
+    mood: _Mood;
+    song: _Song;
+    addedAt: bigint;
+} {
+    return {
+        mood: to_candid_Mood_n3(_uploadFile, _downloadFile, value.mood),
+        song: value.song,
+        addedAt: value.addedAt
     };
 }
 function to_candid_variant_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): {
@@ -591,8 +687,11 @@ function to_candid_variant_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8
         energetic: null
     } : value;
 }
-function to_candid_vec_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<MoodHistoryEntry>): Array<_MoodHistoryEntry> {
-    return value.map((x)=>to_candid_MoodHistoryEntry_n23(_uploadFile, _downloadFile, x));
+function to_candid_vec_n25(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<MoodHistoryEntry>): Array<_MoodHistoryEntry> {
+    return value.map((x)=>to_candid_MoodHistoryEntry_n26(_uploadFile, _downloadFile, x));
+}
+function to_candid_vec_n28(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<PlaylistEntry>): Array<_PlaylistEntry> {
+    return value.map((x)=>to_candid_PlaylistEntry_n29(_uploadFile, _downloadFile, x));
 }
 export interface CreateActorOptions {
     agent?: Agent;

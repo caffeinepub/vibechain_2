@@ -22,6 +22,11 @@ export interface TransformationOutput {
     body: Uint8Array;
     headers: Array<http_header>;
 }
+export interface PlaylistEntry {
+    mood: Mood;
+    song: Song;
+    addedAt: bigint;
+}
 export interface MoodHistoryEntry {
     songArtist: string;
     songTitle: string;
@@ -42,6 +47,7 @@ export interface Song {
 export interface UserProfile {
     username: string;
     moodHistory: Array<MoodHistoryEntry>;
+    playlist: Array<PlaylistEntry>;
     isVibeLive: boolean;
     currentMood: Mood;
     currentSong?: Song;
@@ -72,11 +78,14 @@ export interface backendInterface {
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getMusicSuggestions(mood: Mood): Promise<string>;
+    getMyPlaylist(): Promise<Array<PlaylistEntry>>;
     getProfile(username: string): Promise<UserProfile | null>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     getVibeFeed(): Promise<Array<VibeFeedEntry>>;
     isCallerAdmin(): Promise<boolean>;
+    removeFromPlaylist(mood: Mood, trackId: bigint): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    saveToPlaylist(mood: Mood, song: Song): Promise<void>;
     setMood(mood: Mood, song: Song | null): Promise<void>;
     transform(input: TransformationInput): Promise<TransformationOutput>;
     updateUsername(newUsername: string): Promise<void>;

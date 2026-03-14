@@ -36,9 +36,15 @@ export const MoodHistoryEntry = IDL.Record({
   'mood' : Mood,
   'timestamp' : IDL.Int,
 });
+export const PlaylistEntry = IDL.Record({
+  'mood' : Mood,
+  'song' : Song,
+  'addedAt' : IDL.Int,
+});
 export const UserProfile = IDL.Record({
   'username' : IDL.Text,
   'moodHistory' : IDL.Vec(MoodHistoryEntry),
+  'playlist' : IDL.Vec(PlaylistEntry),
   'isVibeLive' : IDL.Bool,
   'currentMood' : Mood,
   'currentSong' : IDL.Opt(Song),
@@ -75,6 +81,7 @@ export const idlService = IDL.Service({
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getMusicSuggestions' : IDL.Func([Mood], [IDL.Text], []),
+  'getMyPlaylist' : IDL.Func([], [IDL.Vec(PlaylistEntry)], ['query']),
   'getProfile' : IDL.Func([IDL.Text], [IDL.Opt(UserProfile)], ['query']),
   'getUserProfile' : IDL.Func(
       [IDL.Principal],
@@ -83,7 +90,9 @@ export const idlService = IDL.Service({
     ),
   'getVibeFeed' : IDL.Func([], [IDL.Vec(VibeFeedEntry)], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'removeFromPlaylist' : IDL.Func([Mood, IDL.Nat], [], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+  'saveToPlaylist' : IDL.Func([Mood, Song], [], []),
   'setMood' : IDL.Func([Mood, IDL.Opt(Song)], [], []),
   'transform' : IDL.Func(
       [TransformationInput],
@@ -124,9 +133,15 @@ export const idlFactory = ({ IDL }) => {
     'mood' : Mood,
     'timestamp' : IDL.Int,
   });
+  const PlaylistEntry = IDL.Record({
+    'mood' : Mood,
+    'song' : Song,
+    'addedAt' : IDL.Int,
+  });
   const UserProfile = IDL.Record({
     'username' : IDL.Text,
     'moodHistory' : IDL.Vec(MoodHistoryEntry),
+    'playlist' : IDL.Vec(PlaylistEntry),
     'isVibeLive' : IDL.Bool,
     'currentMood' : Mood,
     'currentSong' : IDL.Opt(Song),
@@ -160,6 +175,7 @@ export const idlFactory = ({ IDL }) => {
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getMusicSuggestions' : IDL.Func([Mood], [IDL.Text], []),
+    'getMyPlaylist' : IDL.Func([], [IDL.Vec(PlaylistEntry)], ['query']),
     'getProfile' : IDL.Func([IDL.Text], [IDL.Opt(UserProfile)], ['query']),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
@@ -168,7 +184,9 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getVibeFeed' : IDL.Func([], [IDL.Vec(VibeFeedEntry)], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'removeFromPlaylist' : IDL.Func([Mood, IDL.Nat], [], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+    'saveToPlaylist' : IDL.Func([Mood, Song], [], []),
     'setMood' : IDL.Func([Mood, IDL.Opt(Song)], [], []),
     'transform' : IDL.Func(
         [TransformationInput],

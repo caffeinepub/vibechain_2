@@ -3,6 +3,9 @@ import { Input } from "@/components/ui/input";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
+  Bookmark,
+  BookmarkCheck,
+  Loader2,
   Music2,
   Pause,
   Play,
@@ -14,7 +17,11 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Song } from "../backend";
 import { BottomNav } from "../components/BottomNav";
-import { useSetMood } from "../hooks/useQueries";
+import {
+  useMyPlaylist,
+  useSaveToPlaylist,
+  useSetMood,
+} from "../hooks/useQueries";
 import { usePlayerStore } from "../store/playerStore";
 import { useVibeStore } from "../store/vibeStore";
 
@@ -43,13 +50,15 @@ function toSong(item: YouTubeItem, index: number): Song {
   };
 }
 
-const YT_API_KEY = "AIzaSyCkFgMR_4K2G5UHVqVPnNcDJLerUnZxE78";
+const YT_API_KEY = "AIzaSyBxXIFVKRoC6BCuX2AxoHiaknG_5Wk8uhE";
 
 export function SongSearchPage() {
   const navigate = useNavigate();
   const { selectedMood } = useVibeStore();
   const { mutateAsync: setMood, isPending: isSettingMood } = useSetMood();
   const { setQueue, isPlaying, queue, currentIndex } = usePlayerStore();
+  const { mutateAsync: saveToPlaylist } = useSaveToPlaylist();
+  const { data: myPlaylist } = useMyPlaylist();
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Song[]>([]);
@@ -57,10 +66,20 @@ export function SongSearchPage() {
   const [hasError, setHasError] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [settingVibeId, setSettingVibeId] = useState<bigint | null>(null);
+  const [savingId, setSavingId] = useState<bigint | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentSong = queue[currentIndex];
+
+  const isSaved = (song: Song) =>
+    selectedMood
+      ? (myPlaylist ?? []).some(
+          (e) =>
+            (e.mood as string) === (selectedMood as string) &&
+            e.song.trackId === song.trackId,
+        )
+      : false;
 
   const searchYouTube = async (term: string) => {
     if (!term.trim()) {
@@ -74,18 +93,27 @@ export function SongSearchPage() {
     setHasSearched(true);
     try {
       const res = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(term)}+music&type=video&videoCategoryId=10&maxResults=25&key=${YT_API_KEY}`,
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(term)}+music&type=video&videoEmbeddable=true&videoSyndicated=true&maxResults=25&key=${YT_API_KEY}`,
       );
-      if (!res.ok) throw new Error("YouTube API error");
+      if (!res.ok) throw new Error(`YouTube API error ${res.status}`);
       const data = await res.json();
+      if (data.error) {
+        toast.error(`YouTube API error: ${data.error?.message ?? "unknown"}`);
+        setHasError(true);
+        setResults([]);
+        return;
+      }
       const items = (data.items as YouTubeItem[]) ?? [];
       const songs = items
         .filter((item) => item.id?.videoId)
         .map((item, index) => toSong(item, index));
       setResults(songs);
-    } catch {
+    } catch (err) {
       setHasError(true);
       setResults([]);
+      if (err instanceof Error) {
+        toast.error(err.message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -125,6 +153,22 @@ export function SongSearchPage() {
       toast.error("Failed to set vibe. Try again.");
     } finally {
       setSettingVibeId(null);
+    }
+  };
+
+  const handleSave = async (song: Song) => {
+    if (!selectedMood) {
+      toast.error("Pick a mood first 🎭");
+      return;
+    }
+    setSavingId(song.trackId);
+    try {
+      await saveToPlaylist({ mood: selectedMood, song });
+      toast.success("Saved to playlist! 🔖");
+    } catch {
+      toast.error("Failed to save. Try again.");
+    } finally {
+      setSavingId(null);
     }
   };
 
@@ -263,6 +307,8 @@ export function SongSearchPage() {
                 const isThisPlaying = isCurrent && isPlaying;
                 const isSetting =
                   isSettingMood && settingVibeId === song.trackId;
+                const isSaving = savingId === song.trackId;
+                const saved = isSaved(song);
                 return (
                   <motion.div
                     key={String(song.trackId)}
@@ -313,6 +359,28 @@ export function SongSearchPage() {
                           )}
                         </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => handleSave(song)}
+                        data-ocid={`search.save_button.${i + 1}`}
+                        disabled={isSaving || saved}
+                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                          saved
+                            ? "bg-primary/20 text-primary"
+                            : "bg-muted/50 text-muted-foreground hover:bg-primary/20 hover:text-primary"
+                        } disabled:opacity-50`}
+                        aria-label={
+                          saved ? "Already saved" : "Save to playlist"
+                        }
+                      >
+                        {isSaving ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : saved ? (
+                          <BookmarkCheck size={14} />
+                        ) : (
+                          <Bookmark size={14} />
+                        )}
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleSetVibe(song)}

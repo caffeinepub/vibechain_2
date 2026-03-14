@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Mood, Song, UserProfile, VibeFeedEntry } from "../backend";
+import type {
+  Mood,
+  PlaylistEntry,
+  Song,
+  UserProfile,
+  VibeFeedEntry,
+} from "../backend";
 import { useActor } from "./useActor";
 
 export function useCallerProfile() {
@@ -60,7 +66,7 @@ export function useSetMood() {
   });
 }
 
-const YT_API_KEY = "AIzaSyCkFgMR_4K2G5UHVqVPnNcDJLerUnZxE78";
+const YT_API_KEY = "AIzaSyBxXIFVKRoC6BCuX2AxoHiaknG_5Wk8uhE";
 
 const MOOD_KEYWORDS: Record<string, string> = {
   happy: "happy",
@@ -94,15 +100,22 @@ export function useGetMusicSuggestions() {
         part: "snippet",
         q: `${keyword} music`,
         type: "video",
-        videoCategoryId: "10",
+        videoEmbeddable: "true",
+        videoSyndicated: "true",
         maxResults: "20",
         key: YT_API_KEY,
       });
       const res = await fetch(
         `https://www.googleapis.com/youtube/v3/search?${params}`,
       );
-      if (!res.ok) throw new Error("YouTube API request failed");
-      const parsed = (await res.json()) as { items?: YouTubeItem[] };
+      if (!res.ok) throw new Error(`YouTube API error: ${res.status}`);
+      const parsed = (await res.json()) as {
+        items?: YouTubeItem[];
+        error?: { message?: string };
+      };
+      if (parsed.error) {
+        throw new Error(parsed.error?.message ?? "YouTube API error");
+      }
       const items = parsed.items ?? [];
       return items
         .filter((item) => item.id?.videoId)
@@ -119,5 +132,53 @@ export function useGetMusicSuggestions() {
           }),
         );
     },
+  });
+}
+
+export function useMyPlaylist() {
+  const { actor, isFetching } = useActor();
+  return useQuery<PlaylistEntry[]>({
+    queryKey: ["myPlaylist"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getMyPlaylist();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSaveToPlaylist() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ mood, song }: { mood: Mood; song: Song }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.saveToPlaylist(mood, song);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["myPlaylist"] }),
+  });
+}
+
+export function useRemoveFromPlaylist() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ mood, trackId }: { mood: Mood; trackId: bigint }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.removeFromPlaylist(mood, trackId);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["myPlaylist"] }),
+  });
+}
+
+export function usePublicProfile(username: string | undefined) {
+  const { actor, isFetching } = useActor();
+  return useQuery<UserProfile | null>({
+    queryKey: ["publicProfile", username],
+    queryFn: async () => {
+      if (!actor || !username) return null;
+      return actor.getProfile(username);
+    },
+    enabled: !!actor && !isFetching && !!username,
   });
 }
