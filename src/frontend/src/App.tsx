@@ -27,7 +27,13 @@ const rootRoute = createRootRoute({
     <>
       <Outlet />
       <MiniPlayer />
-      <Toaster position="top-center" theme="dark" richColors />
+      <Toaster
+        position="top-center"
+        theme="dark"
+        richColors
+        closeButton
+        duration={3000}
+      />
     </>
   ),
 });

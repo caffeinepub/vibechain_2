@@ -1,4 +1,4 @@
-import { Music2, Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import { Music2, Pause, Play, SkipBack, SkipForward, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
 import { audioManager, usePlayerStore } from "../store/playerStore";
@@ -13,6 +13,7 @@ export function MiniPlayer() {
     toggle,
     next,
     prev,
+    clearPlayer,
   } = usePlayerStore();
 
   const song = queue[currentIndex];
@@ -143,6 +144,17 @@ export function MiniPlayer() {
                   className="w-9 h-9 flex items-center justify-center rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-all disabled:opacity-25 disabled:cursor-not-allowed"
                 >
                   <SkipForward size={16} />
+                </button>
+
+                {/* Close / dismiss button */}
+                <button
+                  type="button"
+                  data-ocid="miniplayer.close_button"
+                  onClick={clearPlayer}
+                  aria-label="Close player"
+                  className="w-8 h-8 flex items-center justify-center rounded-full text-white/40 hover:text-white hover:bg-white/10 transition-all ml-0.5"
+                >
+                  <X size={14} />
                 </button>
               </div>
             </div>

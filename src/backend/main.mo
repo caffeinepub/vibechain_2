@@ -9,12 +9,12 @@ import Time "mo:core/Time";
 import OutCall "http-outcalls/outcall";
 import Runtime "mo:core/Runtime";
 import Order "mo:core/Order";
-import Migration "migration";
+
 
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 
-(with migration = Migration.run)
+
 actor {
   // Custom types
   public type Mood = {
