@@ -44,6 +44,12 @@ export interface Song {
     trackId: bigint;
     artist: string;
 }
+export interface ChatMessage {
+    text: string;
+    toUsername: string;
+    timestamp: bigint;
+    fromUsername: string;
+}
 export interface UserProfile {
     username: string;
     moodHistory: Array<MoodHistoryEntry>;
@@ -51,6 +57,7 @@ export interface UserProfile {
     isVibeLive: boolean;
     currentMood: Mood;
     currentSong?: Song;
+    friends: Array<string>;
 }
 export interface http_header {
     value: string;
@@ -72,20 +79,26 @@ export enum UserRole {
     guest = "guest"
 }
 export interface backendInterface {
+    addFriend(username: string): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     clearCurrentVibe(): Promise<void>;
     createUserProfile(username: string, mood: Mood, song: Song | null): Promise<void>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
+    getConversation(withUsername: string): Promise<Array<ChatMessage>>;
+    getFriends(): Promise<Array<string>>;
     getMusicSuggestions(mood: Mood): Promise<string>;
+    getMyConversations(): Promise<Array<string>>;
     getMyPlaylist(): Promise<Array<PlaylistEntry>>;
     getProfile(username: string): Promise<UserProfile | null>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     getVibeFeed(): Promise<Array<VibeFeedEntry>>;
     isCallerAdmin(): Promise<boolean>;
+    removeFriend(username: string): Promise<void>;
     removeFromPlaylist(mood: Mood, trackId: bigint): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     saveToPlaylist(mood: Mood, song: Song): Promise<void>;
+    sendMessage(toUsername: string, text: string): Promise<void>;
     setMood(mood: Mood, song: Song | null): Promise<void>;
     transform(input: TransformationInput): Promise<TransformationOutput>;
     updateUsername(newUsername: string): Promise<void>;

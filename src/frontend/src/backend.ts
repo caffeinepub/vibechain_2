@@ -126,6 +126,12 @@ export interface Song {
     trackId: bigint;
     artist: string;
 }
+export interface ChatMessage {
+    text: string;
+    toUsername: string;
+    timestamp: bigint;
+    fromUsername: string;
+}
 export interface UserProfile {
     username: string;
     moodHistory: Array<MoodHistoryEntry>;
@@ -133,6 +139,7 @@ export interface UserProfile {
     isVibeLive: boolean;
     currentMood: Mood;
     currentSong?: Song;
+    friends: Array<string>;
 }
 export interface http_header {
     value: string;
@@ -155,20 +162,26 @@ export enum UserRole {
 }
 export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
+    addFriend(username: string): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     clearCurrentVibe(): Promise<void>;
     createUserProfile(username: string, mood: Mood, song: Song | null): Promise<void>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
+    getConversation(withUsername: string): Promise<Array<ChatMessage>>;
+    getFriends(): Promise<Array<string>>;
     getMusicSuggestions(mood: Mood): Promise<string>;
+    getMyConversations(): Promise<Array<string>>;
     getMyPlaylist(): Promise<Array<PlaylistEntry>>;
     getProfile(username: string): Promise<UserProfile | null>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     getVibeFeed(): Promise<Array<VibeFeedEntry>>;
     isCallerAdmin(): Promise<boolean>;
+    removeFriend(username: string): Promise<void>;
     removeFromPlaylist(mood: Mood, trackId: bigint): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     saveToPlaylist(mood: Mood, song: Song): Promise<void>;
+    sendMessage(toUsername: string, text: string): Promise<void>;
     setMood(mood: Mood, song: Song | null): Promise<void>;
     transform(input: TransformationInput): Promise<TransformationOutput>;
     updateUsername(newUsername: string): Promise<void>;
@@ -187,6 +200,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor._initializeAccessControlWithSecret(arg0);
+            return result;
+        }
+    }
+    async addFriend(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addFriend(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addFriend(arg0);
             return result;
         }
     }
@@ -260,6 +287,34 @@ export class Backend implements backendInterface {
             return from_candid_UserRole_n18(this._uploadFile, this._downloadFile, result);
         }
     }
+    async getConversation(arg0: string): Promise<Array<ChatMessage>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getConversation(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getConversation(arg0);
+            return result;
+        }
+    }
+    async getFriends(): Promise<Array<string>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getFriends();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getFriends();
+            return result;
+        }
+    }
     async getMusicSuggestions(arg0: Mood): Promise<string> {
         if (this.processError) {
             try {
@@ -271,6 +326,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.getMusicSuggestions(to_candid_Mood_n3(this._uploadFile, this._downloadFile, arg0));
+            return result;
+        }
+    }
+    async getMyConversations(): Promise<Array<string>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getMyConversations();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getMyConversations();
             return result;
         }
     }
@@ -344,6 +413,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async removeFriend(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.removeFriend(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.removeFriend(arg0);
+            return result;
+        }
+    }
     async removeFromPlaylist(arg0: Mood, arg1: bigint): Promise<void> {
         if (this.processError) {
             try {
@@ -383,6 +466,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.saveToPlaylist(to_candid_Mood_n3(this._uploadFile, this._downloadFile, arg0), arg1);
+            return result;
+        }
+    }
+    async sendMessage(arg0: string, arg1: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.sendMessage(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.sendMessage(arg0, arg1);
             return result;
         }
     }
@@ -508,6 +605,7 @@ function from_candid_record_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint
     isVibeLive: boolean;
     currentMood: _Mood;
     currentSong: [] | [_Song];
+    friends: Array<string>;
 }): {
     username: string;
     moodHistory: Array<MoodHistoryEntry>;
@@ -515,6 +613,7 @@ function from_candid_record_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint
     isVibeLive: boolean;
     currentMood: Mood;
     currentSong?: Song;
+    friends: Array<string>;
 } {
     return {
         username: value.username,
@@ -522,7 +621,8 @@ function from_candid_record_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint
         playlist: from_candid_vec_n14(_uploadFile, _downloadFile, value.playlist),
         isVibeLive: value.isVibeLive,
         currentMood: from_candid_Mood_n12(_uploadFile, _downloadFile, value.currentMood),
-        currentSong: record_opt_to_undefined(from_candid_opt_n17(_uploadFile, _downloadFile, value.currentSong))
+        currentSong: record_opt_to_undefined(from_candid_opt_n17(_uploadFile, _downloadFile, value.currentSong)),
+        friends: value.friends
     };
 }
 function from_candid_variant_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
@@ -587,6 +687,7 @@ function to_candid_record_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8
     isVibeLive: boolean;
     currentMood: Mood;
     currentSong?: Song;
+    friends: Array<string>;
 }): {
     username: string;
     moodHistory: Array<_MoodHistoryEntry>;
@@ -594,6 +695,7 @@ function to_candid_record_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8
     isVibeLive: boolean;
     currentMood: _Mood;
     currentSong: [] | [_Song];
+    friends: Array<string>;
 } {
     return {
         username: value.username,
@@ -601,7 +703,8 @@ function to_candid_record_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8
         playlist: to_candid_vec_n28(_uploadFile, _downloadFile, value.playlist),
         isVibeLive: value.isVibeLive,
         currentMood: to_candid_Mood_n3(_uploadFile, _downloadFile, value.currentMood),
-        currentSong: value.currentSong ? candid_some(value.currentSong) : candid_none()
+        currentSong: value.currentSong ? candid_some(value.currentSong) : candid_none(),
+        friends: value.friends
     };
 }
 function to_candid_record_n27(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {

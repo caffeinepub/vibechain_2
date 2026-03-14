@@ -7,7 +7,10 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { MiniPlayer } from "./components/MiniPlayer";
+import { ChatListPage } from "./pages/ChatListPage";
+import { ChatPage } from "./pages/ChatPage";
 import { EmotionDetectPage } from "./pages/EmotionDetectPage";
+import { FriendsPage } from "./pages/FriendsPage";
 import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MoodSelectorPage } from "./pages/MoodSelector";
@@ -94,6 +97,21 @@ const sharedPlaylistRoute = createRoute({
   path: "/playlist/$username",
   component: SharedPlaylistPage,
 });
+const chatListRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/chat",
+  component: ChatListPage,
+});
+const chatRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/chat/$username",
+  component: ChatPage,
+});
+const friendsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/friends",
+  component: FriendsPage,
+});
 
 const routeTree = rootRoute.addChildren([
   landingRoute,
@@ -109,6 +127,9 @@ const routeTree = rootRoute.addChildren([
   detectMoodRoute,
   playlistRoute,
   sharedPlaylistRoute,
+  chatListRoute,
+  chatRoute,
+  friendsRoute,
 ]);
 
 const router = createRouter({ routeTree });

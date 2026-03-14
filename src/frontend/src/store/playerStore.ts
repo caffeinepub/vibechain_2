@@ -121,6 +121,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
 
   clearPlayer: () => {
     audioManager.pause();
+    wakeLockManager.release();
     set({
       queue: [],
       currentIndex: 0,
@@ -131,6 +132,150 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     });
   },
 }));
+
+// ---------------------------------------------------------------------------
+// Screen Wake Lock — prevents OS from suspending the player on mobile
+// ---------------------------------------------------------------------------
+
+class WakeLockManager {
+  private lock: WakeLockSentinel | null = null;
+
+  async acquire() {
+    if (!("wakeLock" in navigator)) return;
+    try {
+      this.lock = await (navigator as any).wakeLock.request("screen");
+      this.lock!.addEventListener("release", () => {
+        this.lock = null;
+      });
+    } catch {
+      /* ignore — denied or not supported */
+    }
+  }
+
+  async release() {
+    try {
+      await this.lock?.release();
+    } catch {
+      /* ignore */
+    }
+    this.lock = null;
+  }
+}
+
+export const wakeLockManager = new WakeLockManager();
+
+// Re-acquire wake lock when the user returns to the tab while music is playing
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    const { isPlaying } = usePlayerStore.getState();
+    if (isPlaying) {
+      wakeLockManager.acquire();
+      // Resume YouTube player in case mobile browser paused it
+      audioManager.play();
+    }
+  } else {
+    // Page hidden — OS will reclaim the lock anyway
+    wakeLockManager.release();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Media Session API — lock screen / notification controls
+// ---------------------------------------------------------------------------
+
+function updateMediaSession(song: Song | undefined, isPlaying: boolean) {
+  if (!("mediaSession" in navigator)) return;
+  if (!song) return;
+
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: song.title,
+    artist: song.artist,
+    artwork: song.artworkUrl
+      ? [{ src: song.artworkUrl, sizes: "512x512", type: "image/jpeg" }]
+      : [],
+  });
+
+  navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+
+  navigator.mediaSession.setActionHandler("play", () => {
+    usePlayerStore.getState().play();
+  });
+  navigator.mediaSession.setActionHandler("pause", () => {
+    usePlayerStore.getState().pause();
+  });
+  navigator.mediaSession.setActionHandler("previoustrack", () => {
+    usePlayerStore.getState().prev();
+  });
+  navigator.mediaSession.setActionHandler("nexttrack", () => {
+    usePlayerStore.getState().next();
+  });
+  navigator.mediaSession.setActionHandler("seekto", (details) => {
+    if (details.seekTime != null) {
+      audioManager.seek(details.seekTime);
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// iOS background audio keep-alive
+// A silent <audio> loop tricks iOS Safari into keeping the audio context alive
+// so the YouTube embed isn't suspended when the screen locks.
+// ---------------------------------------------------------------------------
+
+class IOSBackgroundKeepAlive {
+  private ctx: AudioContext | null = null;
+  private source: AudioBufferSourceNode | null = null;
+  private started = false;
+
+  start() {
+    if (this.started) return;
+    this.started = true;
+    try {
+      // Use Web Audio API with a nearly-silent looping buffer.
+      // This keeps the audio session alive on iOS so the YouTube
+      // iframe is not suspended when the screen locks.
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext;
+      if (!AudioContextClass) return;
+      this.ctx = new AudioContextClass();
+      const buf = this.ctx.createBuffer(
+        1,
+        this.ctx.sampleRate,
+        this.ctx.sampleRate,
+      );
+      this.source = this.ctx.createBufferSource();
+      this.source.buffer = buf;
+      this.source.loop = true;
+      const gain = this.ctx.createGain();
+      gain.gain.value = 0.001;
+      this.source.connect(gain);
+      gain.connect(this.ctx.destination);
+      this.source.start(0);
+    } catch {
+      // ignore
+    }
+  }
+
+  stop() {
+    try {
+      this.source?.stop();
+    } catch {
+      /* ignore */
+    }
+    this.source = null;
+    try {
+      this.ctx?.close();
+    } catch {
+      /* ignore */
+    }
+    this.ctx = null;
+    this.started = false;
+  }
+}
+
+export const iosKeepAlive = new IOSBackgroundKeepAlive();
 
 // ---------------------------------------------------------------------------
 // YouTubePlayerManager singleton
@@ -194,6 +339,18 @@ class YouTubePlayerManager {
         const currentTime = this.player.getCurrentTime();
         const duration = this.player.getDuration();
         for (const cb of this._onTimeUpdateCbs) cb(currentTime, duration || 0);
+        // Keep Media Session position state in sync
+        if ("mediaSession" in navigator && duration > 0) {
+          try {
+            navigator.mediaSession.setPositionState({
+              duration,
+              playbackRate: 1,
+              position: currentTime,
+            });
+          } catch {
+            /* ignore */
+          }
+        }
       } catch {
         // player not ready yet
       }
@@ -215,13 +372,13 @@ class YouTubePlayerManager {
     if (this.player && this._ready) {
       this.player.loadVideoById(videoId);
       if (autoplay) {
-        // loadVideoById auto-starts, but call playVideo to be explicit
         try {
           this.player.playVideo();
         } catch {
           /* ignore */
         }
         this.startPolling();
+        wakeLockManager.acquire();
         usePlayerStore.setState({ isPlaying: true });
       }
       return;
@@ -255,6 +412,7 @@ class YouTubePlayerManager {
               /* ignore */
             }
             this.startPolling();
+            wakeLockManager.acquire();
             usePlayerStore.setState({ isPlaying: true });
           }
         },
@@ -262,17 +420,26 @@ class YouTubePlayerManager {
           const YTState = window.YT?.PlayerState;
           if (YTState?.ENDED === event.data) {
             this.stopPolling();
+            wakeLockManager.release();
             for (const cb of this._onEndedCbs) cb();
           } else if (YTState?.PLAYING === event.data) {
             this.startPolling();
+            wakeLockManager.acquire();
+            iosKeepAlive.start();
             usePlayerStore.setState({ isPlaying: true });
+            const { queue, currentIndex } = usePlayerStore.getState();
+            updateMediaSession(queue[currentIndex], true);
           } else if (YTState?.PAUSED === event.data) {
             this.stopPolling();
+            wakeLockManager.release();
             usePlayerStore.setState({ isPlaying: false });
+            const { queue, currentIndex } = usePlayerStore.getState();
+            updateMediaSession(queue[currentIndex], false);
           }
         },
         onError: (event: { data: number }) => {
           this.stopPolling();
+          wakeLockManager.release();
           usePlayerStore.setState({ isPlaying: false });
           const msg =
             event.data === 2
@@ -295,8 +462,12 @@ class YouTubePlayerManager {
     if (!song.previewUrl) return;
     const videoId = song.previewUrl;
 
+    if (autoplay) {
+      iosKeepAlive.start();
+      updateMediaSession(song, true);
+    }
+
     if (this.player && this._ready) {
-      // Player exists and is ready — swap video directly
       this.player.loadVideoById(videoId);
       if (autoplay) {
         try {
@@ -305,14 +476,13 @@ class YouTubePlayerManager {
           /* ignore */
         }
         this.startPolling();
+        wakeLockManager.acquire();
         usePlayerStore.setState({ isPlaying: true });
       }
     } else if (this.player && !this._ready) {
-      // Player is initializing — queue the video
       this._pendingVideoId = videoId;
       this._autoplayOnReady = autoplay;
     } else {
-      // No player yet — create one
       this.createPlayer(videoId, autoplay).catch(() => {});
     }
   }
@@ -322,6 +492,10 @@ class YouTubePlayerManager {
       try {
         this.player.playVideo();
         this.startPolling();
+        wakeLockManager.acquire();
+        iosKeepAlive.start();
+        const { queue, currentIndex } = usePlayerStore.getState();
+        updateMediaSession(queue[currentIndex], true);
       } catch {
         // ignore
       }
@@ -330,9 +504,12 @@ class YouTubePlayerManager {
 
   pause() {
     this.stopPolling();
+    wakeLockManager.release();
     if (this.player && this._ready) {
       try {
         this.player.pauseVideo();
+        const { queue, currentIndex } = usePlayerStore.getState();
+        updateMediaSession(queue[currentIndex], false);
       } catch {
         // ignore
       }
@@ -377,6 +554,8 @@ audioManager.onEnded(() => {
     usePlayerStore.getState().next();
   } else {
     usePlayerStore.setState({ isPlaying: false, progress: 0, currentTime: 0 });
+    iosKeepAlive.stop();
+    wakeLockManager.release();
   }
 });
 

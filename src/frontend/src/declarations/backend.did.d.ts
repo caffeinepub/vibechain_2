@@ -10,6 +10,12 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface ChatMessage {
+  'text' : string,
+  'toUsername' : string,
+  'timestamp' : bigint,
+  'fromUsername' : string,
+}
 export type Mood = { 'sad' : null } |
   { 'melancholic' : null } |
   { 'anxious' : null } |
@@ -52,6 +58,7 @@ export interface UserProfile {
   'isVibeLive' : boolean,
   'currentMood' : Mood,
   'currentSong' : [] | [Song],
+  'friends' : Array<string>,
 }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
@@ -69,20 +76,26 @@ export interface http_request_result {
 }
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'addFriend' : ActorMethod<[string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'clearCurrentVibe' : ActorMethod<[], undefined>,
   'createUserProfile' : ActorMethod<[string, Mood, [] | [Song]], undefined>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getConversation' : ActorMethod<[string], Array<ChatMessage>>,
+  'getFriends' : ActorMethod<[], Array<string>>,
   'getMusicSuggestions' : ActorMethod<[Mood], string>,
+  'getMyConversations' : ActorMethod<[], Array<string>>,
   'getMyPlaylist' : ActorMethod<[], Array<PlaylistEntry>>,
   'getProfile' : ActorMethod<[string], [] | [UserProfile]>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getVibeFeed' : ActorMethod<[], Array<VibeFeedEntry>>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'removeFriend' : ActorMethod<[string], undefined>,
   'removeFromPlaylist' : ActorMethod<[Mood, bigint], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'saveToPlaylist' : ActorMethod<[Mood, Song], undefined>,
+  'sendMessage' : ActorMethod<[string, string], undefined>,
   'setMood' : ActorMethod<[Mood, [] | [Song]], undefined>,
   'transform' : ActorMethod<[TransformationInput], TransformationOutput>,
   'updateUsername' : ActorMethod<[string], undefined>,

@@ -2,9 +2,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useParams } from "@tanstack/react-router";
-import { Link } from "@tanstack/react-router";
-import { Music2, Pause, Play, Sparkles } from "lucide-react";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { MessageCircle, Music2, Pause, Play, Sparkles } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import type { Mood, PlaylistEntry } from "../backend";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
@@ -16,6 +15,7 @@ export function SharedPlaylistPage() {
   const { username } = useParams({ strict: false }) as { username: string };
   const { data: profile, isLoading, isError } = usePublicProfile(username);
   const { identity } = useInternetIdentity();
+  const navigate = useNavigate();
   const { setQueue, isPlaying, queue, currentIndex } = usePlayerStore();
   const currentSong = queue[currentIndex];
 
@@ -127,7 +127,7 @@ export function SharedPlaylistPage() {
                   {profile.username.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <div>
+              <div className="flex-1">
                 <h1 className="font-display text-2xl font-bold">
                   {profile.username}
                 </h1>
@@ -135,6 +135,23 @@ export function SharedPlaylistPage() {
                   {playlist.length} songs in playlist
                 </p>
               </div>
+              {identity && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full gap-2 border-primary/30 hover:border-primary/60 hover:bg-primary/10"
+                  onClick={() =>
+                    navigate({
+                      to: "/chat/$username",
+                      params: { username: profile.username },
+                    })
+                  }
+                  data-ocid="shared_playlist.message_button"
+                >
+                  <MessageCircle size={14} />
+                  Message
+                </Button>
+              )}
             </motion.div>
 
             {playlist.length === 0 ? (

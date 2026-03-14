@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  ChatMessage,
   Mood,
   PlaylistEntry,
   Song,
@@ -66,7 +67,7 @@ export function useSetMood() {
   });
 }
 
-const YT_API_KEY = "AIzaSyBxXIFVKRoC6BCuX2AxoHiaknG_5Wk8uhE";
+const YT_API_KEY = "AIzaSyC4wFZbYfToWIoptfiMXxoywAK-STRjeHo";
 
 const MOOD_KEYWORDS: Record<string, string> = {
   happy: "happy",
@@ -180,5 +181,96 @@ export function usePublicProfile(username: string | undefined) {
       return actor.getProfile(username);
     },
     enabled: !!actor && !isFetching && !!username,
+  });
+}
+
+// --- Chat hooks ---
+
+export function useMyConversations() {
+  const { actor, isFetching } = useActor();
+  return useQuery<string[]>({
+    queryKey: ["myConversations"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getMyConversations();
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useGetConversation(withUsername: string | undefined) {
+  const { actor, isFetching } = useActor();
+  return useQuery<ChatMessage[]>({
+    queryKey: ["conversation", withUsername],
+    queryFn: async () => {
+      if (!actor || !withUsername) return [];
+      return actor.getConversation(withUsername);
+    },
+    enabled: !!actor && !isFetching && !!withUsername,
+    refetchInterval: 5_000,
+  });
+}
+
+export function useSendMessage() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      toUsername,
+      text,
+    }: { toUsername: string; text: string }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.sendMessage(toUsername, text);
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({
+        queryKey: ["conversation", variables.toUsername],
+      });
+      qc.invalidateQueries({ queryKey: ["myConversations"] });
+    },
+  });
+}
+
+// --- Friends hooks ---
+
+export function useGetFriends() {
+  const { actor, isFetching } = useActor();
+  return useQuery<string[]>({
+    queryKey: ["friends"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getFriends();
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useAddFriend() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (username: string) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.addFriend(username);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["friends"] });
+    },
+  });
+}
+
+export function useRemoveFriend() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (username: string) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.removeFriend(username);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["friends"] });
+    },
   });
 }
